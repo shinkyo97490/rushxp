@@ -80,3 +80,8 @@ export function zoneText(widened: boolean) {
 export function fmtScore(v: number) {
   return new Intl.NumberFormat("fr-FR").format(Math.round(v));
 }
+
+/** Rang en français : 1er, 2e, 3e… */
+export function ordinal(n: number) {
+  return n === 1 ? "1er" : `${n}e`;
+}

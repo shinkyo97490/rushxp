@@ -162,6 +162,9 @@ model User {
   region          String     @default("RE")
   intent          String? // joueur | capitaine | gestionnaire
   availability    String[]   @default([])
+  bio             String?
+  privacy         Json       @default("{}") // { profile, dm, lft }
+  notifPrefs      Json       @default("{}") // { [catégorie]: { site, email } }
   xp              Int        @default(0)
   level           Int        @default(1)
   status          UserStatus @default(ACTIVE)
@@ -174,8 +177,11 @@ model User {
   sessions        Session[]
   accounts        Account[]
   structureStaff  StructureStaff[]
-  invitations     Invitation[]     @relation("InvitationUser")
-  sentInvitations Invitation[]     @relation("InvitationSender")
+  invitations     Invitation[]      @relation("InvitationUser")
+  sentInvitations Invitation[]      @relation("InvitationSender")
+  contracts       StructureMember[]
+  threadsA        Thread[]          @relation("ThreadA")
+  threadsB        Thread[]          @relation("ThreadB")
 
   gameAccounts  GameAccount[]
   memberships   RosterMember[]
@@ -285,10 +291,12 @@ model Structure {
   createdAt  DateTime        @default(now())
 
   staff         StructureStaff[]
+  members       StructureMember[]
   invitations   Invitation[]
+  recruitAds    RecruitAd[]
   rosters       Roster[]
-  transfersFrom Transfer[]       @relation("TransferFrom")
-  transfersTo   Transfer[]       @relation("TransferTo")
+  transfersFrom Transfer[]        @relation("TransferFrom")
+  transfersTo   Transfer[]        @relation("TransferTo")
 }
 
 enum StaffRole {
@@ -308,6 +316,21 @@ model StructureStaff {
 
   @@id([structureId, userId])
   @@index([userId])
+}
+
+/// Effectif d'une structure (contrat). Un joueur n'est sous contrat qu'avec une structure à la fois (leftAt = null).
+model StructureMember {
+  id          String    @id @default(cuid())
+  structureId String
+  userId      String
+  joinedAt    DateTime  @default(now())
+  leftAt      DateTime?
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, leftAt])
+  @@index([structureId, leftAt])
 }
 
 enum InvitationKind {
@@ -330,11 +353,14 @@ model Invitation {
   invitedById String
   kind        InvitationKind   @default(INVITE)
   status      InvitationStatus @default(PENDING)
+  rosterId    String? // roster visé (sinon : effectif de la structure)
+  memberRole  MemberRole       @default(STARTER)
   createdAt   DateTime         @default(now())
 
   structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
   user      User      @relation("InvitationUser", fields: [userId], references: [id], onDelete: Cascade)
   invitedBy User      @relation("InvitationSender", fields: [invitedById], references: [id])
+  roster    Roster?   @relation(fields: [rosterId], references: [id], onDelete: SetNull)
 
   @@unique([structureId, userId])
 }
@@ -347,10 +373,12 @@ model Roster {
   name        String
   captainId   String?
 
-  structure Structure      @relation(fields: [structureId], references: [id])
-  gameRef   Game           @relation(fields: [game], references: [id])
-  captain   User?          @relation("RosterCaptain", fields: [captainId], references: [id])
-  members   RosterMember[]
+  structure   Structure      @relation(fields: [structureId], references: [id])
+  gameRef     Game           @relation(fields: [game], references: [id])
+  captain     User?          @relation("RosterCaptain", fields: [captainId], references: [id])
+  members     RosterMember[]
+  invitations Invitation[]
+  createdAt   DateTime       @default(now())
 
   @@unique([structureId, game, name])
 }
@@ -398,9 +426,11 @@ model RecruitAd {
   text         String
   expiresAt    DateTime
   moderation   ModerationStatus @default(PENDING)
+  structureId  String?
   createdAt    DateTime         @default(now())
 
-  author User @relation(fields: [authorId], references: [id])
+  author    User       @relation(fields: [authorId], references: [id])
+  structure Structure? @relation(fields: [structureId], references: [id], onDelete: Cascade)
 }
 
 // ─── RushXP Rankings ─────────────────────────────────────────────
@@ -505,14 +535,18 @@ model Dispute {
 }
 
 model Sanction {
-  id         String         @id @default(cuid())
-  targetType SanctionTarget
-  targetId   String
-  type       String
-  reason     String
-  article    String?
-  until      DateTime?
-  createdAt  DateTime       @default(now())
+  id          String         @id @default(cuid())
+  targetType  SanctionTarget
+  targetId    String
+  type        String
+  reason      String
+  article     String?
+  until       DateTime?
+  createdById String?
+  liftedAt    DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([targetType, targetId])
 }
 
 // ─── Rendez-vous mensuels (TFT, Warzone, Apex) ───────────────────
@@ -597,6 +631,23 @@ model Notification {
   @@index([userId, readAt])
 }
 
+/// Conversation privée entre deux utilisateurs (userAId < userBId).
+model Thread {
+  id        String    @id @default(cuid())
+  userAId   String
+  userBId   String
+  readA     DateTime?
+  readB     DateTime?
+  lastAt    DateTime  @default(now())
+  createdAt DateTime  @default(now())
+
+  userA    User      @relation("ThreadA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User      @relation("ThreadB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([userAId, userBId])
+}
+
 model Message {
   id        String   @id @default(cuid())
   threadId  String
@@ -605,7 +656,8 @@ model Message {
   reported  Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  author User @relation(fields: [authorId], references: [id])
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
 
   @@index([threadId, createdAt])
 }
@@ -622,4 +674,92 @@ model AuditLog {
   actor User? @relation(fields: [actorId], references: [id])
 
   @@index([target, at])
+}
+
+// ─── Actualités (fil communautaire) ──────────────────────────────
+
+enum PostKind {
+  ANNONCE
+  RESULTAT
+  VIDEO
+  GALERIE
+  SONDAGE
+  STRUCTURE
+}
+
+/// Publication du fil. `official` = publiée par l'équipe RushXP ; sinon par une structure.
+model Post {
+  id          String    @id @default(cuid())
+  authorId    String
+  structureId String?
+  official    Boolean   @default(false)
+  kind        PostKind  @default(ANNONCE)
+  title       String
+  body        String?
+  image       String? // chemin d'un visuel fourni (public/assets) en attendant le stockage
+  pinned      Boolean   @default(false)
+  pollEndsAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  comments PostComment[]
+  likes    PostLike[]
+  options  PollOption[]
+  votes    PollVote[]
+
+  @@index([createdAt])
+}
+
+model PostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  text      String
+  reported  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model PostLike {
+  postId String
+  userId String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  postId String
+  label  String
+  order  Int    @default(0)
+
+  post  Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+}
+
+model PollVote {
+  postId   String
+  userId   String
+  optionId String
+
+  post   Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+}
+
+/// Demande « Devenir partenaire ».
+model PartnerLead {
+  id        String    @id @default(cuid())
+  company   String
+  email     String
+  goal      String
+  message   String?
+  handledAt DateTime?
+  createdAt DateTime  @default(now())
 }

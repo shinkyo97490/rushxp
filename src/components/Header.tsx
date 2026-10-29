@@ -45,17 +45,24 @@ export function Header({ viewer }: { viewer: Viewer | null }) {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#BFC1C4" strokeWidth="1.5" aria-hidden>
               <path d="M2 3h12v8H7l-3 3v-3H2z" />
             </svg>
-            <span className="sr-only">Messages</span>
+            {viewer!.unreadMessages > 0 && (
+              <span className="absolute -top-[5px] -right-[5px] grid h-4 min-w-4 place-items-center bg-orange px-1 text-[10px] font-bold text-bg">{viewer!.unreadMessages}</span>
+            )}
+            <span className="sr-only">Messages, {viewer!.unreadMessages} non lu(s)</span>
           </Link>
         )}
-        {member && (
+        {viewer && (
           <Link href="/notifications" title="Notifications" className={iconBtn}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#BFC1C4" strokeWidth="1.5" aria-hidden>
               <path d="M4 11V7a4 4 0 0 1 8 0v4l1 1.5H3z" />
               <line x1="6.5" y1="14.5" x2="9.5" y2="14.5" />
             </svg>
-            <span className="absolute -top-[5px] -right-[5px] grid h-4 w-4 place-items-center bg-orange text-[10px] font-bold text-bg">3</span>
-            <span className="sr-only">Notifications, 3 non lues</span>
+            {viewer.unreadNotifications > 0 && (
+              <span className="absolute -top-[5px] -right-[5px] grid h-4 min-w-4 place-items-center bg-orange px-1 text-[10px] font-bold text-bg">
+                {viewer.unreadNotifications > 99 ? "99+" : viewer.unreadNotifications}
+              </span>
+            )}
+            <span className="sr-only">Notifications, {viewer.unreadNotifications} non lue(s)</span>
           </Link>
         )}
         {isStaff(role) && (

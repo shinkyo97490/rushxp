@@ -124,3 +124,45 @@ describe("rôle effectif", () => {
     expect(effectiveRole({ ...base, dbRole: "ADMIN" })).toBe("admin");
   });
 });
+
+import { isMercatoOpen, isRosterComplete, joinBlock, rosterSlotError } from "./roster";
+
+describe("rosters et mercato", () => {
+  it("limite titulaires et remplaçants", () => {
+    expect(rosterSlotError({ rosterSize: 5, starters: 5, subs: 0 }, "STARTER")).toMatch(/complet/);
+    expect(rosterSlotError({ rosterSize: 5, starters: 5, subs: 1 }, "SUB")).toBeNull();
+    expect(rosterSlotError({ rosterSize: 5, starters: 5, subs: 2 }, "SUB")).toMatch(/2 remplaçants/);
+    expect(isRosterComplete({ rosterSize: 3, starters: 2 })).toBe(false);
+  });
+  it("mercato en juin, agents libres toute l’année", () => {
+    expect(isMercatoOpen(new Date("2026-06-15"))).toBe(true);
+    expect(isMercatoOpen(new Date("2026-10-29"))).toBe(false);
+    expect(joinBlock(null, "B", new Date("2026-10-29"))).toBeNull();
+    expect(joinBlock("A", "B", new Date("2026-10-29"))).toMatch(/mercato/);
+  });
+});
+
+import { validateStreamUrl } from "./streams";
+
+describe("liens de diffusion", () => {
+  it("accepte uniquement les domaines de la plateforme choisie", () => {
+    expect(validateStreamUrl("Twitch", "https://www.twitch.tv/rushxp")).toEqual({ ok: true, url: "twitch.tv/rushxp" });
+    expect(validateStreamUrl("YouTube", "youtu.be/abc123").ok).toBe(true);
+    expect(validateStreamUrl("Twitch", "https://kick.com/rushxp").ok).toBe(false);
+    expect(validateStreamUrl("Kick", "https://kick.com.evil.io/x").ok).toBe(false);
+    expect(validateStreamUrl("Kick", "kick.com").ok).toBe(false);
+    expect(validateStreamUrl("TikTok", "javascript:alert(1)").ok).toBe(false);
+  });
+});
+
+import { nextEventDate } from "@/lib/events/schedule";
+
+describe("dates des RDV mensuels", () => {
+  it("un samedi par mois, jamais en juin ni en hiver", () => {
+    const tft = nextEventDate("tft", new Date(2026, 9, 29));
+    expect(tft.getDay()).toBe(6);
+    expect([tft.getMonth(), tft.getDate(), tft.getHours()]).toEqual([10, 21, 18]); // 3e samedi de novembre
+    expect(nextEventDate("apex", new Date(2026, 4, 31, 22)).getMonth()).toBe(6); // juin sauté → juillet
+    expect(nextEventDate("wz", new Date(2026, 11, 1)).getMonth()).toBe(2); // décembre → mars
+  });
+});

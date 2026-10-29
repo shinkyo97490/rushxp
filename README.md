@@ -80,10 +80,20 @@ UPDATE "User" SET role = 'ADMIN' WHERE email = 'votre@email.fr';
 - Création de structure en 4 étapes : identité, jeux (un roster par jeu), invitations par pseudo, validation. La structure est créée « en vérification », avec un code d'invitation, des notifications et une ligne d'audit.
 - Rôles calculés côté serveur ; Admin et Arbitrage invisibles (404) pour les autres rôles.
 
+**Lot 2 · toutes les pages (fait)**
+
+Chaque écran du prototype a sa route.
+
+| Données | Pages |
+|---|---|
+| **Réelles (base)** | Équipe & recrutement (rosters, plusieurs équipes par jeu, invitations, demandes par code, capitaine, effectif, libération, annonces modérées, mercato), notifications (préférences), messages privés (signalement), paramètres (profil, mot de passe, sessions, comptes de jeu, confidentialité, export RGPD, suppression), profils joueur et structure, administration (tableau de bord, vérification des structures, rôles et suspensions, annonces, sanctions, formats et barèmes, diffusion, demandes partenaires, audit), espace arbitre (signalements), actualités (publications officielles et de structures, j’aime, commentaires, sondages), inscriptions aux RDV mensuels, formulaire « Devenir partenaire » |
+| **Démonstration (étiquetée)** | RushXP Rankings et défis, calendrier, Match Center (veto VAL / CDL, lobby RL, score FC, set Tekken, lobby TFT, check-in, diffusion, OCR, chat), feuille de match, Playoffs, résultats des RDV passés, Joueurs & MVP, file de contestations, campagnes publicitaires |
+| **Contenu éditorial** | Le circuit, règlement, partenaires, états système (`/etat/maintenance`, `/etat/suspendu`, `/etat/connexion-perdue`) |
+
 **Lots suivants (proposés)**
-2. Défis persistés (server actions et transitions contrôlées), calendrier, Match Center (veto, check-in, chat WebSocket, preuves), équipes et recrutement (plusieurs équipes par jeu, mercato).
-3. RDV mensuels, Playoffs, profils, espace arbitre, administration (barèmes, audit), Joueurs & MVP.
-4. Actualités, partenaires, messages et notifications, paramètres, règlement, états système, OCR, OAuth des comptes de jeu.
+3. Rankings et défis en base (RankingEntry, Challenge, Match), calendrier réel, Match Center connecté au serveur, seeding figé.
+4. Temps réel (chat de match, veto, notifications), OCR des captures, saisie des RDV par l’arbitre, contestations (Dispute).
+5. E-mails transactionnels, OAuth Discord et éditeurs de jeux, envoi de médias (logos, photos, captures), 2FA, transferts du mercato.
 
 ## Points à valider avec RushXP
 

@@ -9,7 +9,7 @@ import type { RankingRow } from "@/lib/data/repo";
 import { eloDelta, formatDelta, kFactor } from "@/lib/rules/elo";
 import { UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
 import type { Role } from "@/lib/session-shared";
-import { eligibility, fmtScore, liveRows, zoneText, type Eligibility } from "@/lib/rankings-model";
+import { eligibility, fmtScore, liveRows, ordinal, zoneText, type Eligibility } from "@/lib/rankings-model";
 import { ConfirmDialog, type ConfirmRequest } from "@/components/ConfirmDialog";
 
 export type RankingsTab = "table" | "defis" | "divisions" | "seeding";
@@ -94,9 +94,9 @@ export function RankingsClient({ tab, game, role, canAct, rows, initial, general
       deltaOpp: dOpp,
       playedAt: new Date().toISOString(),
       meta: "Confirmé par l’adversaire · validé automatiquement · classement recalculé",
-      result: `${res ? "Victoire" : "Défaite"} · ${formatDelta(dMe)} pts · ${before}e → ${after}e`,
+      result: `${res ? "Victoire" : "Défaite"} · ${formatDelta(dMe)} pts · ${ordinal(before)} → ${ordinal(after)}`,
     });
-    setLast({ title: `${me.name} vs ${opp.name}`, pts: dMe, ranks: `${before}e → ${after}e` });
+    setLast({ title: `${me.name} vs ${opp.name}`, pts: dMe, ranks: `${ordinal(before)} → ${ordinal(after)}` });
   };
 
   return (
@@ -146,11 +146,11 @@ export function RankingsClient({ tab, game, role, canAct, rows, initial, general
 function Kpis({ me, participants, placement, received, general, role }: { me: RankingRow; participants: number; placement: number; received: number; general: Props["generalRank"]; role: Role }) {
   const member = role !== "visiteur";
   const items: { k: string; v: string; s: string; c?: string; href?: string }[] = [
-    { k: "Votre rang", v: member ? `${me.rank}e` : "—", s: member ? `${me.name} · Division ${me.division}` : "Connectez-vous", c: "text-orange" },
+    { k: "Votre rang", v: member ? ordinal(me.rank) : "—", s: member ? `${me.name} · Division ${me.division}` : "Connectez-vous", c: "text-orange" },
     { k: "Score", v: member ? fmtScore(me.score) : "—", s: `K = ${kFactor(me)} · Elo` },
     { k: "Participants", v: String(participants), s: `${placement} en placement` },
     { k: "Défis reçus", v: member ? String(received) : "—", s: "réponse sous 48 h", c: received && member ? "text-orange" : undefined },
-    { k: "Classement général", v: general && member ? `${general.label}e` : "—", s: general ? `${general.structure} · tous jeux` : "", href: "/classement" },
+    { k: "Classement général", v: general && member ? (general.label === "1" ? "1er" : `${general.label}e`) : "—", s: general ? `${general.structure} · tous jeux` : "", href: "/classement" },
   ];
   return (
     <div className="mt-3.5 grid border border-line bg-surface [grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))]">
@@ -372,7 +372,7 @@ function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, pat
               {targets.map((t) => (
                 <div key={t.id} className="grid gap-1 border-r border-b border-surface-2 px-[18px] py-3.5">
                   <div className="flex items-baseline gap-2">
-                    <span className="font-display text-2xl font-extrabold text-orange">{t.rank}e</span>
+                    <span className="font-display text-2xl font-extrabold text-orange">{ordinal(t.rank)}</span>
                     <span className="truncate font-semibold">{t.name}</span>
                   </div>
                   <div className="text-xs text-grey">{fmtScore(t.score)} pts · Division {t.division}{t.team ? ` · ${t.team}` : ""}</div>
@@ -410,7 +410,7 @@ function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, pat
                 <div key={c.id} className="flex flex-wrap items-center gap-x-3 gap-y-2.5 border-b border-surface-2 px-[18px] py-3">
                   <div className="min-w-0 flex-[1_1_260px]">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold">{c.dir === "in" ? "Reçu de " : "Envoyé à "}{o?.name ?? "?"} · {o?.rank ?? "?"}e</span>
+                      <span className="font-semibold">{c.dir === "in" ? "Reçu de " : "Envoyé à "}{o?.name ?? "?"} · {o ? ordinal(o.rank) : "?"}</span>
                       <span className={`badge ${stc}`}>{stl}</span>
                     </div>
                     <div className="mt-0.5 text-xs text-grey">{c.meta}{c.slot ? ` · ${c.slot}` : ""}</div>
@@ -506,7 +506,7 @@ function NonEligible({ rows, el, me }: { rows: RankingRow[]; el: Eligibility; me
       <div className="overline px-[18px] pt-3 pb-1">Non éligibles autour de vous</div>
       {near.map((r) => (
         <div key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-surface-2 px-[18px] py-2 text-[13px] opacity-80">
-          <span className="w-8 font-display text-base font-bold text-grey">{r.rank}e</span>
+          <span className="w-8 font-display text-base font-bold text-grey">{ordinal(r.rank)}</span>
           <span className="min-w-0 flex-1 truncate font-semibold">{r.name}{r.team ? <span className="font-normal text-grey"> · {r.team}</span> : null}</span>
           <span className="text-grey">{el.why(r.id)}</span>
         </div>
