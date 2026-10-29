@@ -1,0 +1,509 @@
+// Modèle de données RushXP, d'après docs/handoff/SPEC_METIER.md §5.
+// Les formats (taille de roster, série, barème, lobby) sont des paramètres stockés en base, pas des constantes.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Énumérations ────────────────────────────────────────────────
+
+enum Role {
+  JOUEUR
+  CAPITAINE
+  GESTIONNAIRE
+  ARBITRE
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum GameKind {
+  CHALLENGE // RushXP Rankings (Elo)
+  LOBBY // rendez-vous mensuels
+}
+
+enum AccountProvider {
+  RIOT
+  ACTIVISION
+  EA
+  EPIC
+  BANDAI
+  STEAM
+}
+
+enum StructureStatus {
+  DRAFT
+  PENDING
+  VERIFIED
+}
+
+enum MemberRole {
+  STARTER
+  SUB
+}
+
+enum TransferKind {
+  SIGNING
+  TRANSFER
+  RELEASE
+}
+
+enum TransferStatus {
+  PENDING_CLUBS
+  PENDING_PLAYER
+  PENDING_RUSHXP
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum RecruitAdKind {
+  STRUCTURE
+  PLAYER
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ChallengeStatus {
+  PENDING
+  ACCEPTED
+  PLANNED
+  CHECK_IN
+  LIVE
+  SUBMITTED
+  DONE
+  REFUSED
+  EXPIRED
+  DISPUTED
+  CANCELLED
+  FORFEIT
+}
+
+enum ChallengeOrigin {
+  MANUAL
+  AUTO
+}
+
+enum MatchType {
+  CHALLENGE
+  PLAYOFF
+}
+
+enum MatchStatus {
+  SCHEDULED
+  CHECK_IN
+  LIVE
+  SUBMITTED
+  DONE
+  DISPUTED
+  CANCELLED
+}
+
+enum SubmissionStatus {
+  UPLOADED
+  ANALYZING
+  EXTRACTED
+  AWAITING_OPPONENT
+  AUTO_VALIDATED
+  REFEREE_REVIEW
+  VALIDATED
+  REJECTED
+}
+
+enum EventStatus {
+  DRAFT
+  OPEN
+  CHECK_IN
+  LIVE
+  DONE
+  CANCELLED
+}
+
+enum RoundStatus {
+  PENDING
+  ENTRY
+  PUBLISHED
+}
+
+enum ResultSource {
+  OCR
+  MANUAL
+}
+
+enum SanctionTarget {
+  USER
+  ROSTER
+  STRUCTURE
+}
+
+// ─── Comptes ─────────────────────────────────────────────────────
+
+model User {
+  id        String     @id @default(cuid())
+  pseudo    String     @unique
+  email     String     @unique
+  role      Role       @default(JOUEUR)
+  region    String     @default("RE")
+  xp        Int        @default(0)
+  level     Int        @default(1)
+  status    UserStatus @default(ACTIVE)
+  twoFA     Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  gameAccounts  GameAccount[]
+  memberships   RosterMember[]
+  captainOf     Roster[]            @relation("RosterCaptain")
+  transfers     Transfer[]
+  recruitAds    RecruitAd[]
+  submissions   ResultSubmission[]
+  disputes      Dispute[]           @relation("DisputeOpenedBy")
+  refereed      Dispute[]           @relation("DisputeReferee")
+  notifications Notification[]
+  messages      Message[]
+  auditLogs     AuditLog[]
+}
+
+model GameAccount {
+  userId     String
+  game       String
+  provider   AccountProvider
+  externalId String
+  verifiedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameRef Game @relation(fields: [game], references: [id])
+
+  @@id([userId, game])
+  @@unique([provider, externalId])
+}
+
+// ─── Jeux et formats (paramétrables) ─────────────────────────────
+
+model Game {
+  id         String   @id // val, rl, cod, fc, tek, tft, wz, apex
+  name       String
+  kind       GameKind
+  rosterSize Int // 5 pour VAL, 1 pour FC / Tekken, 2 pour Warzone…
+  series     String? // "BO3", "BO5"…
+  lobbySize  Int? // 8 en TFT
+  scale      Json? // barème des RDV mensuels (placement → points)
+  killPoint  Int      @default(0)
+  active     Boolean  @default(true)
+
+  gameAccounts GameAccount[]
+  rosters      Roster[]
+}
+
+// ─── Structures et rosters ───────────────────────────────────────
+
+model Structure {
+  id         String          @id @default(cuid())
+  name       String          @unique
+  tag        String          @unique
+  region     String          @default("RE")
+  logoUrl    String?
+  verifiedAt DateTime?
+  status     StructureStatus @default(DRAFT)
+  createdAt  DateTime        @default(now())
+
+  rosters       Roster[]
+  transfersFrom Transfer[] @relation("TransferFrom")
+  transfersTo   Transfer[] @relation("TransferTo")
+}
+
+/// Plusieurs rosters possibles par (structure, jeu), ex. « Arise » et « Academy ».
+model Roster {
+  id          String  @id @default(cuid())
+  structureId String
+  game        String
+  name        String
+  captainId   String?
+
+  structure Structure      @relation(fields: [structureId], references: [id])
+  gameRef   Game           @relation(fields: [game], references: [id])
+  captain   User?          @relation("RosterCaptain", fields: [captainId], references: [id])
+  members   RosterMember[]
+
+  @@unique([structureId, game, name])
+}
+
+/// Règle : un joueur n'est que dans une seule équipe par jeu (contrôlée au service, leftAt = null).
+model RosterMember {
+  rosterId String
+  userId   String
+  game     String // dénormalisé pour l'unicité joueur / jeu
+  role     MemberRole @default(STARTER)
+  joinedAt DateTime   @default(now())
+  leftAt   DateTime?
+
+  roster Roster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@id([rosterId, userId, joinedAt])
+  @@index([userId, game])
+}
+
+model Transfer {
+  id              String         @id @default(cuid())
+  userId          String
+  fromStructureId String?
+  toStructureId   String
+  game            String
+  kind            TransferKind
+  status          TransferStatus @default(PENDING_CLUBS)
+  window          String // ex. "2026-06" (mercato) ou "free-agent"
+  createdAt       DateTime       @default(now())
+
+  user          User       @relation(fields: [userId], references: [id])
+  fromStructure Structure? @relation("TransferFrom", fields: [fromStructureId], references: [id])
+  toStructure   Structure  @relation("TransferTo", fields: [toStructureId], references: [id])
+}
+
+model RecruitAd {
+  id           String           @id @default(cuid())
+  kind         RecruitAdKind
+  authorId     String
+  game         String
+  role         String?
+  level        String?
+  availability String?
+  text         String
+  expiresAt    DateTime
+  moderation   ModerationStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+
+  author User @relation(fields: [authorId], references: [id])
+}
+
+// ─── RushXP Rankings ─────────────────────────────────────────────
+
+/// entityId = roster (jeux en équipe) ou user (jeux 1v1).
+model RankingEntry {
+  game             String
+  entityId         String
+  score            Int       @default(800)
+  k                Int       @default(40)
+  placementMatches Int       @default(0)
+  division         Int?
+  lastMatchAt      DateTime?
+  immunityUntil    DateTime?
+  onLeaveUntil     DateTime?
+
+  @@id([game, entityId])
+  @@index([game, score])
+}
+
+model Challenge {
+  id           String          @id @default(cuid())
+  game         String
+  challengerId String
+  defenderId   String
+  status       ChallengeStatus @default(PENDING)
+  proposedSlots DateTime[]
+  slot         DateTime?
+  stakesWin    Int
+  stakesLoss   Int
+  origin       ChallengeOrigin @default(MANUAL)
+  refusalReason String?
+  createdAt    DateTime        @default(now())
+  respondBy    DateTime
+
+  match Match?
+
+  @@index([game, status])
+  @@index([challengerId])
+  @@index([defenderId])
+}
+
+model Match {
+  id          String      @id @default(cuid())
+  game        String
+  type        MatchType
+  challengeId String?     @unique
+  a           String
+  b           String
+  series      String
+  scheduledAt DateTime
+  checkInA    DateTime?
+  checkInB    DateTime?
+  status      MatchStatus @default(SCHEDULED)
+  streamLinks Json        @default("[]")
+
+  challenge   Challenge?         @relation(fields: [challengeId], references: [id])
+  veto        Veto?
+  submissions ResultSubmission[]
+}
+
+model Veto {
+  matchId String @id
+  steps   Json // [{ actor, action: ban|pick|side, map, mode }]
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+}
+
+/// Un résultat n'est jamais officiel avant status = VALIDATED / AUTO_VALIDATED.
+model ResultSubmission {
+  id           String           @id @default(cuid())
+  matchId      String?
+  eventRoundId String?
+  uploaderId   String
+  fileUrl      String
+  ocrValues    Json?
+  ocrConfidence Float?
+  declaredA    Int?
+  declaredB    Int?
+  status       SubmissionStatus @default(UPLOADED)
+  createdAt    DateTime         @default(now())
+
+  match      Match?      @relation(fields: [matchId], references: [id])
+  eventRound EventRound? @relation(fields: [eventRoundId], references: [id])
+  uploader   User        @relation(fields: [uploaderId], references: [id])
+  disputes   Dispute[]
+}
+
+model Dispute {
+  id           String    @id @default(cuid())
+  submissionId String
+  openedById   String
+  reason       String
+  evidence     Json      @default("[]")
+  decision     String?
+  refereeId    String?
+  decidedAt    DateTime?
+
+  submission ResultSubmission @relation(fields: [submissionId], references: [id])
+  openedBy   User             @relation("DisputeOpenedBy", fields: [openedById], references: [id])
+  referee    User?            @relation("DisputeReferee", fields: [refereeId], references: [id])
+}
+
+model Sanction {
+  id         String         @id @default(cuid())
+  targetType SanctionTarget
+  targetId   String
+  type       String
+  reason     String
+  article    String?
+  until      DateTime?
+  createdAt  DateTime       @default(now())
+}
+
+// ─── Rendez-vous mensuels (TFT, Warzone, Apex) ───────────────────
+
+model MonthlyEvent {
+  id        String      @id @default(cuid())
+  game      String
+  month     String // "2026-10"
+  date      DateTime
+  checkInAt DateTime
+  capacity  Int
+  status    EventStatus @default(DRAFT)
+
+  entries EventEntry[]
+  rounds  EventRound[]
+
+  @@unique([game, month])
+}
+
+model EventEntry {
+  id       String   @id @default(cuid())
+  eventId  String
+  entityId String
+  members  String[]
+
+  event   MonthlyEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  results EventResult[]
+
+  @@unique([eventId, entityId])
+}
+
+model EventRound {
+  id      String      @id @default(cuid())
+  eventId String
+  n       Int
+  lobbies Json // [{ code, entries: [entryId] }]
+  status  RoundStatus @default(PENDING)
+
+  event       MonthlyEvent       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  results     EventResult[]
+  submissions ResultSubmission[]
+
+  @@unique([eventId, n])
+}
+
+model EventResult {
+  roundId   String
+  entryId   String
+  placement Int
+  kills     Int          @default(0)
+  points    Int
+  source    ResultSource
+
+  round EventRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  entry EventEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, entryId])
+}
+
+// ─── Seeding, notifications, messages, audit ─────────────────────
+
+/// Instantané immuable (horodatage + hash).
+model SeedSnapshot {
+  id      String   @id @default(cuid())
+  game    String
+  takenAt DateTime
+  hash    String
+  rows    Json
+}
+
+model Notification {
+  id       String    @id @default(cuid())
+  userId   String
+  category String
+  text     String
+  link     String?
+  readAt   DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  authorId  String
+  text      String
+  reported  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([threadId, createdAt])
+}
+
+model AuditLog {
+  id      String   @id @default(cuid())
+  actorId String?
+  action  String
+  target  String
+  before  Json?
+  after   Json?
+  at      DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([target, at])
+}
