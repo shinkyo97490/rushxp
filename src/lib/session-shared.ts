@@ -12,8 +12,6 @@ export const ROLE_LABEL: Record<Role, string> = {
   admin: "Administrateur",
 };
 
-export const ROLE_COOKIE = "rxp-role";
-
 /** Peut lancer / accepter un défi : capitaine ou gestionnaire en équipe, joueur ou capitaine en 1v1. */
 export function canChallenge(role: Role, solo: boolean): boolean {
   return solo ? role === "joueur" || role === "capitaine" : role === "capitaine" || role === "gestionnaire";

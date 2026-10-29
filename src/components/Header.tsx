@@ -1,14 +1,17 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ROLE_LABEL, isStaff, type Role } from "@/lib/session-shared";
+import { ROLE_LABEL, isStaff } from "@/lib/session-shared";
+import type { Viewer } from "@/lib/auth/viewer";
 import { receivedChallengeCount } from "@/lib/data/challenges";
 import { NavLinks, type NavItem } from "./NavLinks";
+import { AccountMenu } from "./AccountMenu";
 
 const iconBtn =
   "relative grid h-[38px] w-[38px] flex-none place-items-center border border-line bg-surface transition-colors duration-150 hover:border-orange";
 
-export function Header({ role }: { role: Role }) {
-  const member = role !== "visiteur";
+export function Header({ viewer }: { viewer: Viewer | null }) {
+  const role = viewer?.role ?? "visiteur";
+  const member = !!viewer;
   const received = member ? receivedChallengeCount() : 0;
   const nav: NavItem[] = [
     { href: "/", label: "Accueil", match: ["/"] },
@@ -63,14 +66,8 @@ export function Header({ role }: { role: Role }) {
             <Link href="/arbitrage" className="btn btn-tertiary !min-h-[38px] !px-3 !text-sm">Arbitrage</Link>
           </>
         )}
-        {member ? (
-          <Link href="/profil" className="flex flex-none items-center gap-2.5 text-ink hover:text-ink">
-            <span className="grid h-[38px] w-[38px] place-items-center border border-orange bg-surface-2 font-display text-[15px] font-bold">AK</span>
-            <span className="hidden text-left leading-tight lg:block">
-              <span className="block text-sm font-semibold">Akio</span>
-              <span className="block text-[11px] uppercase tracking-[.08em] text-grey">{ROLE_LABEL[role]}</span>
-            </span>
-          </Link>
+        {viewer ? (
+          <AccountMenu pseudo={viewer.pseudo} roleLabel={ROLE_LABEL[role]} structure={viewer.structure} />
         ) : (
           <Link href="/connexion" className="btn btn-primary clip-corner-sm !min-h-[38px] !px-4">Connexion</Link>
         )}

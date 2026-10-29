@@ -150,26 +150,41 @@ enum SanctionTarget {
 
 // ─── Comptes ─────────────────────────────────────────────────────
 
+/// `role` ne porte que les rôles attribués par RushXP (ARBITRE, ADMIN).
+/// Capitaine et gestionnaire se déduisent des rosters et des structures (voir src/lib/auth/roles.ts).
 model User {
-  id        String     @id @default(cuid())
-  pseudo    String     @unique
-  email     String     @unique
-  role      Role       @default(JOUEUR)
-  region    String     @default("RE")
-  xp        Int        @default(0)
-  level     Int        @default(1)
-  status    UserStatus @default(ACTIVE)
-  twoFA     Boolean    @default(false)
-  createdAt DateTime   @default(now())
+  id              String     @id @default(cuid())
+  pseudo          String     @unique
+  email           String     @unique
+  emailVerified   Boolean    @default(false)
+  image           String?
+  role            Role       @default(JOUEUR)
+  region          String     @default("RE")
+  intent          String? // joueur | capitaine | gestionnaire
+  availability    String[]   @default([])
+  xp              Int        @default(0)
+  level           Int        @default(1)
+  status          UserStatus @default(ACTIVE)
+  twoFA           Boolean    @default(false)
+  termsAcceptedAt DateTime?
+  onboardedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  sessions        Session[]
+  accounts        Account[]
+  structureStaff  StructureStaff[]
+  invitations     Invitation[]     @relation("InvitationUser")
+  sentInvitations Invitation[]     @relation("InvitationSender")
 
   gameAccounts  GameAccount[]
   memberships   RosterMember[]
-  captainOf     Roster[]            @relation("RosterCaptain")
+  captainOf     Roster[]           @relation("RosterCaptain")
   transfers     Transfer[]
   recruitAds    RecruitAd[]
   submissions   ResultSubmission[]
-  disputes      Dispute[]           @relation("DisputeOpenedBy")
-  refereed      Dispute[]           @relation("DisputeReferee")
+  disputes      Dispute[]          @relation("DisputeOpenedBy")
+  refereed      Dispute[]          @relation("DisputeReferee")
   notifications Notification[]
   messages      Message[]
   auditLogs     AuditLog[]
@@ -179,14 +194,63 @@ model GameAccount {
   userId     String
   game       String
   provider   AccountProvider
-  externalId String
-  verifiedAt DateTime?
+  externalId String? // identifiant déclaré ; null si le jeu est choisi sans compte lié
+  verifiedAt DateTime? // renseigné après vérification OAuth de l'éditeur
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
   gameRef Game @relation(fields: [game], references: [id])
 
   @@id([userId, game])
-  @@unique([provider, externalId])
+  @@unique([game, externalId]) // un même identifiant ne peut être lié qu'à un seul compte RushXP par jeu
+}
+
+// ─── Authentification (Better Auth) ──────────────────────────────
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Identifiants de connexion (mot de passe haché, fournisseurs OAuth). Distinct de GameAccount.
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }
 
 // ─── Jeux et formats (paramétrables) ─────────────────────────────
@@ -213,14 +277,66 @@ model Structure {
   name       String          @unique
   tag        String          @unique
   region     String          @default("RE")
+  bio        String?
   logoUrl    String?
+  inviteCode String          @unique
   verifiedAt DateTime?
   status     StructureStatus @default(DRAFT)
   createdAt  DateTime        @default(now())
 
+  staff         StructureStaff[]
+  invitations   Invitation[]
   rosters       Roster[]
-  transfersFrom Transfer[] @relation("TransferFrom")
-  transfersTo   Transfer[] @relation("TransferTo")
+  transfersFrom Transfer[]       @relation("TransferFrom")
+  transfersTo   Transfer[]       @relation("TransferTo")
+}
+
+enum StaffRole {
+  OWNER
+  MANAGER
+}
+
+/// Gestionnaires d'une structure.
+model StructureStaff {
+  structureId String
+  userId      String
+  role        StaffRole @default(MANAGER)
+  createdAt   DateTime  @default(now())
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([structureId, userId])
+  @@index([userId])
+}
+
+enum InvitationKind {
+  INVITE // la structure invite un joueur
+  REQUEST // le joueur demande à rejoindre (code d'invitation)
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+/// Invitation d'un joueur dans une structure, ou demande d'un joueur via le code de la structure.
+model Invitation {
+  id          String           @id @default(cuid())
+  structureId String
+  userId      String
+  invitedById String
+  kind        InvitationKind   @default(INVITE)
+  status      InvitationStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  structure Structure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  user      User      @relation("InvitationUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("InvitationSender", fields: [invitedById], references: [id])
+
+  @@unique([structureId, userId])
 }
 
 /// Plusieurs rosters possibles par (structure, jeu), ex. « Arise » et « Academy ».
@@ -306,19 +422,19 @@ model RankingEntry {
 }
 
 model Challenge {
-  id           String          @id @default(cuid())
-  game         String
-  challengerId String
-  defenderId   String
-  status       ChallengeStatus @default(PENDING)
+  id            String          @id @default(cuid())
+  game          String
+  challengerId  String
+  defenderId    String
+  status        ChallengeStatus @default(PENDING)
   proposedSlots DateTime[]
-  slot         DateTime?
-  stakesWin    Int
-  stakesLoss   Int
-  origin       ChallengeOrigin @default(MANUAL)
+  slot          DateTime?
+  stakesWin     Int
+  stakesLoss    Int
+  origin        ChallengeOrigin @default(MANUAL)
   refusalReason String?
-  createdAt    DateTime        @default(now())
-  respondBy    DateTime
+  createdAt     DateTime        @default(now())
+  respondBy     DateTime
 
   match Match?
 
@@ -355,17 +471,17 @@ model Veto {
 
 /// Un résultat n'est jamais officiel avant status = VALIDATED / AUTO_VALIDATED.
 model ResultSubmission {
-  id           String           @id @default(cuid())
-  matchId      String?
-  eventRoundId String?
-  uploaderId   String
-  fileUrl      String
-  ocrValues    Json?
+  id            String           @id @default(cuid())
+  matchId       String?
+  eventRoundId  String?
+  uploaderId    String
+  fileUrl       String
+  ocrValues     Json?
   ocrConfidence Float?
-  declaredA    Int?
-  declaredB    Int?
-  status       SubmissionStatus @default(UPLOADED)
-  createdAt    DateTime         @default(now())
+  declaredA     Int?
+  declaredB     Int?
+  status        SubmissionStatus @default(UPLOADED)
+  createdAt     DateTime         @default(now())
 
   match      Match?      @relation(fields: [matchId], references: [id])
   eventRound EventRound? @relation(fields: [eventRoundId], references: [id])
@@ -468,13 +584,13 @@ model SeedSnapshot {
 }
 
 model Notification {
-  id       String    @id @default(cuid())
-  userId   String
-  category String
-  text     String
-  link     String?
-  readAt   DateTime?
-  createdAt DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  category  String
+  text      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

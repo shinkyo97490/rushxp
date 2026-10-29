@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getRole, isStaff } from "@/lib/session";
 
 /**
  * Écrans du prototype pas encore développés (SPEC_METIER §4).
@@ -25,8 +26,6 @@ const SCREENS: Record<string, { title: string; key: string; points: string; lot:
   parametres: { title: "Paramètres", key: "settings", points: "Profil, sécurité (2FA, sessions), comptes liés, confidentialité.", lot: 4 },
   arbitrage: { title: "Espace arbitre", key: "referee", points: "File priorisée, preuve, comparaison des valeurs, décision motivée.", lot: 3 },
   admin: { title: "Administration", key: "admin", points: "Navigation latérale, saisie des RDV, paramètres Rankings, barèmes, audit.", lot: 3 },
-  connexion: { title: "Connexion", key: "login", points: "Connexion e-mail / mot de passe, OAuth des comptes de jeu.", lot: 1 },
-  inscription: { title: "Inscription", key: "signup", points: "Assistant en 4 étapes avec validation.", lot: 1 },
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string[] }> }): Promise<Metadata> {
@@ -38,6 +37,9 @@ export default async function Upcoming({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const s = SCREENS[slug[0]];
   if (!s) notFound();
+  // Outils d'équipe : invisibles pour les autres rôles (contrôle serveur, pas seulement masquage).
+  if ((slug[0] === "admin" || slug[0] === "arbitrage") && !isStaff(await getRole())) notFound();
+  if (slug[0] === "admin" && (await getRole()) !== "admin") notFound();
   return (
     <main className="container-rx pt-7 pb-16">
       <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-grey">Écran en cours de développement · lot {s.lot}</div>

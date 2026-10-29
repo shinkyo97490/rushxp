@@ -1,14 +1,10 @@
-import { cookies } from "next/headers";
-import { ROLES, ROLE_COOKIE, type Role } from "./session-shared";
+import "server-only";
+import { getViewer } from "@/lib/auth/viewer";
+import type { Role } from "./session-shared";
 
 export * from "./session-shared";
 
-/**
- * Session de DÉMONSTRATION : le rôle vient d'un cookie posé par le sélecteur « Voir en tant que ».
- * À remplacer par une vraie authentification. Les droits devront être contrôlés côté serveur
- * à partir de la session authentifiée, jamais à partir de ce cookie.
- */
+/** Rôle effectif de la requête courante, toujours calculé côté serveur. */
 export async function getRole(): Promise<Role> {
-  const v = (await cookies()).get(ROLE_COOKIE)?.value;
-  return (ROLES as readonly string[]).includes(v ?? "") ? (v as Role) : "capitaine";
+  return (await getViewer())?.role ?? "visiteur";
 }

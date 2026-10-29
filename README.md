@@ -14,14 +14,39 @@ Références : `docs/handoff/README.md` (design) et `docs/handoff/SPEC_METIER.md
 
 ```bash
 npm install
-cp .env.example .env   # renseigner DATABASE_URL
+cp .env.example .env   # renseigner DATABASE_URL et BETTER_AUTH_SECRET
+npm run db:migrate     # crée les tables
+npm run db:seed        # jeux et formats
 npm run dev            # http://localhost:3000
 npm test               # tests des règles métier
-npm run build
 ```
 
-Le site fonctionne **sans base de données** pour l'instant : les écrans lisent des données de démonstration (`src/lib/data/demo.ts`), derrière `src/lib/data/repo.ts`, qui sera branché sur Prisma.
-Le sélecteur « Voir en tant que », dans la barre du haut, simule les rôles (visiteur, joueur, capitaine, gestionnaire, arbitre, admin).
+### Variables d'environnement
+
+| Variable | Rôle |
+|---|---|
+| `DATABASE_URL` | Connexion Postgres (poolée sur Neon). Ajoutée par l'intégration Neon de Vercel |
+| `DATABASE_URL_UNPOOLED` | Connexion directe pour les migrations. Ajoutée par Neon |
+| `BETTER_AUTH_SECRET` | Secret de signature des sessions, **à créer** (`openssl rand -base64 32`). Sans lui, personne ne peut se connecter en production |
+| `BETTER_AUTH_URL` | Facultatif sur Vercel (URL déduite automatiquement) |
+
+### Déploiement (Vercel)
+
+Le script `vercel-build` applique les migrations (`prisma migrate deploy`), charge les données de référence (`prisma db seed`, idempotent), puis construit le site.
+
+### Rôles
+
+Le rôle est calculé côté serveur à chaque requête (`src/lib/auth/roles.ts`) :
+- **Admin** et **Arbitre** sont attribués par RushXP (colonne `User.role`) ;
+- **Gestionnaire** : gère une structure ;
+- **Capitaine** : capitaine d'un roster ;
+- sinon **Joueur**, et **Visiteur** hors connexion.
+
+Pour nommer un administrateur, ouvrez l'éditeur SQL de Neon (Vercel, puis Storage, puis Open in Neon) et lancez :
+
+```sql
+UPDATE "User" SET role = 'ADMIN' WHERE email = 'votre@email.fr';
+```
 
 ## Organisation
 
@@ -48,8 +73,14 @@ Le sélecteur « Voir en tant que », dans la barre du haut, simule les rôles (
 - Classement général des structures, avec colonnes par jeu triables et gestion des égalités.
 - Schéma Prisma de toutes les entités. 12 tests de règles.
 
+**Lot 1 (fait)**
+- Base Postgres (Prisma 7, migrations, seed des jeux), déploiement Vercel avec migrations automatiques.
+- Connexion par e-mail ou pseudo (Better Auth, sessions en base, comptes suspendus bloqués), déconnexion.
+- Inscription en 4 étapes : compte, jeux et identifiants (non vérifiés), profil, structure (créer, rejoindre par code, agent libre).
+- Création de structure en 4 étapes : identité, jeux (un roster par jeu), invitations par pseudo, validation. La structure est créée « en vérification », avec un code d'invitation, des notifications et une ligne d'audit.
+- Rôles calculés côté serveur ; Admin et Arbitrage invisibles (404) pour les autres rôles.
+
 **Lots suivants (proposés)**
-1. Authentification et rôles côté serveur, inscription et création de structure (assistants en 4 étapes), migration Postgres et seed.
 2. Défis persistés (server actions et transitions contrôlées), calendrier, Match Center (veto, check-in, chat WebSocket, preuves), équipes et recrutement (plusieurs équipes par jeu, mercato).
 3. RDV mensuels, Playoffs, profils, espace arbitre, administration (barèmes, audit), Joueurs & MVP.
 4. Actualités, partenaires, messages et notifications, paramètres, règlement, états système, OCR, OAuth des comptes de jeu.
@@ -58,4 +89,6 @@ Le sélecteur « Voir en tant que », dans la barre du haut, simule les rôles (
 
 - **Départage au classement général** : la spec demande d'afficher la règle sans la définir. Le texte affiché (nombre de jeux classés, puis meilleur rang, puis résultat direct) est une **proposition**.
 - « Prochaine échéance » de l'accueil : donnée de démonstration, à relier au calendrier réel.
-- État des défis en démo : il est stocké dans le navigateur (`sessionStorage`). En production, tout passera par le serveur.
+- État des défis en démo : il est stocké dans le navigateur (`sessionStorage`). Les Rankings et les défis passeront sur la base au lot 2 (rosters complets, puis entrée en placement).
+- Pas encore d'e-mail transactionnel : ni vérification d'adresse ni mot de passe oublié. Il faut choisir un service d'envoi (ex. Resend).
+- Connexion Discord : il faut créer une application Discord (identifiants OAuth).

@@ -3,7 +3,7 @@ import { Barlow, JetBrains_Mono, Saira_Condensed } from "next/font/google";
 import { DemoBar } from "@/components/DemoBar";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { getRole } from "@/lib/session";
+import { getViewer } from "@/lib/auth/viewer";
 import "./globals.css";
 
 const saira = Saira_Condensed({ variable: "--font-saira", subsets: ["latin"], weight: ["500", "600", "700", "800"] });
@@ -17,12 +17,12 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const role = await getRole();
+  const viewer = await getViewer();
   return (
     <html lang="fr" className={`${saira.variable} ${barlow.variable} ${jetbrains.variable}`}>
       <body className="min-h-screen flex flex-col">
-        <DemoBar role={role} />
-        <Header role={role} />
+        <DemoBar />
+        <Header viewer={viewer} />
         <div className="flex-1">{children}</div>
         <Footer />
       </body>

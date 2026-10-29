@@ -111,3 +111,16 @@ describe("défis", () => {
     expect(canTransition("DONE", "PENDING")).toBe(false);
   });
 });
+
+import { effectiveRole } from "@/lib/auth/roles";
+
+describe("rôle effectif", () => {
+  const base = { dbRole: "JOUEUR" as const, managesStructure: false, captainOfRoster: false };
+  it("se déduit des structures et rosters, sauf rôles attribués par RushXP", () => {
+    expect(effectiveRole(base)).toBe("joueur");
+    expect(effectiveRole({ ...base, captainOfRoster: true })).toBe("capitaine");
+    expect(effectiveRole({ ...base, captainOfRoster: true, managesStructure: true })).toBe("gestionnaire");
+    expect(effectiveRole({ ...base, dbRole: "ARBITRE", managesStructure: true })).toBe("arbitre");
+    expect(effectiveRole({ ...base, dbRole: "ADMIN" })).toBe("admin");
+  });
+});

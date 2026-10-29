@@ -4,13 +4,15 @@ import { GAMES } from "@/lib/data/games";
 import { STRUCTURES } from "@/lib/data/demo";
 import { getStructureStandings } from "@/lib/data/repo";
 import { rankLabel } from "@/lib/rules/standings";
-import { getRole, isStaff } from "@/lib/session";
+import { getViewer } from "@/lib/auth/viewer";
+import { isStaff } from "@/lib/session-shared";
 import { PHASES, currentPhase, phaseState } from "@/lib/season";
 
 const PARTNERS = ["partner-orange.png", "partner-mcdo.png", "partner-easygym.png", "partner-ocorner.png", "partner-saintpaul.png"];
 
 export default async function Home() {
-  const role = await getRole();
+  const viewer = await getViewer();
+  const role = viewer?.role ?? "visiteur";
   const now = new Date();
   const phase = currentPhase(now);
   const top5 = getStructureStandings().slice(0, 5);
@@ -78,12 +80,28 @@ export default async function Home() {
           <div className="card flex flex-wrap items-center gap-6 border-t-[3px] !border-t-orange px-[22px] py-5">
             <div className="flex-1">
               <div className="overline !text-orange">Votre situation</div>
-              <div className="font-display text-[26px] font-extrabold">Akio · Alpha Esport</div>
-              <div className="text-sm text-silver">Des défis vous attendent dans le Centre des défis.</div>
+              <div className="font-display text-[26px] font-extrabold">
+                {viewer!.pseudo} · {viewer!.structure?.name ?? "Sans structure"}
+              </div>
+              <div className="text-sm text-silver">
+                {!viewer!.onboarded
+                  ? "Terminez votre inscription pour choisir vos jeux et votre structure."
+                  : viewer!.structure?.status === "PENDING"
+                    ? "Votre structure est en cours de vérification par l’équipe RushXP (24 à 48 h)."
+                    : viewer!.structure
+                      ? "Complétez vos rosters pour entrer en placement dans les RushXP Rankings."
+                      : "Rejoignez une structure ou créez la vôtre pour participer aux défis en équipe."}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Link href="/rankings/defis" className="btn btn-primary">Centre des défis</Link>
-              <Link href="/calendrier" className="btn btn-tertiary">Mon calendrier</Link>
+              {!viewer!.onboarded ? (
+                <Link href="/inscription" className="btn btn-primary">Terminer mon inscription</Link>
+              ) : viewer!.structure ? (
+                <Link href="/rankings/defis" className="btn btn-primary">Centre des défis</Link>
+              ) : (
+                <Link href="/structure/nouvelle" className="btn btn-primary">Créer une structure</Link>
+              )}
+              <Link href="/recrutement" className="btn btn-tertiary">Recrutement</Link>
             </div>
           </div>
         ) : (
