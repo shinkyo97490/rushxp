@@ -100,6 +100,12 @@ Chaque écran du prototype a sa route.
 - File de tâches (`Job`) et route `/api/cron/jobs` (Vercel Cron quotidien à minuit, heure de La Réunion).
 - Interfaces d’intégration avec versions simulées : temps réel, OCR, paiement (Stripe), stockage, e-mails.
 
+**LAN & événements (fait, d’après le prototype)**
+- Page `/lan` : fiche de l’événement, tournois et tarifs, inscrits, résultats, inscription équipe ou solo en 4 étapes.
+- Paiement : Stripe (simulé hors production ; en production, l’inscription en ligne reste fermée tant que `STRIPE_SECRET_KEY` et `STRIPE_WEBHOOK_SECRET` ne sont pas configurés).
+- Console › LAN : création et modification (informations, programme, tournois, tarifs, statut, remboursement), saisie du classement par les arbitres, validation des résultats.
+- Les événements annoncés dans le prototype sont créés **en brouillon** au déploiement : vérifiez-les puis passez-les en « Annoncé » ou « Inscriptions ouvertes ».
+
 **Lots suivants**
 Lots B à H : voir `PLAN.md` §7 (cœur compétitif, Match Center, structures et profils, événements et LAN, administration, communauté, qualité).
 

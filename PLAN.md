@@ -9,10 +9,19 @@
 |---|---|
 | Prompt Claude Code (export Claude Design) | ✅ lu |
 | `design_handoff_rushxp/` : `README.md`, `SPEC_METIER.md`, prototype `RushXP Plateforme.dc.html`, `Feuille de match.dc.html`, `assets/` | ✅ lus (version du premier zip) |
-| **Nouvelle version du prototype** (LAN, éditeur générique `CMS_DEF`, map pool et cycles, onglet Créer) | ❌ **manquante** : le zip reçu ne contient aucune de ces parties |
-| `Passation développeurs.md` | ❌ **manquant** |
+| **Nouvelle version du prototype** `RushXP_Plateforme.dc.html` (32 écrans : LAN, `CMS_DEF`, map pool et cycles) | ✅ reçue le 30 oct. 2026 |
+| `Passation développeurs.md` | ❌ toujours manquant (non indispensable : le prototype contient les données) |
 
-**Conséquence :** les écrans LAN, éditeur générique et map pool sont planifiés d’après le texte du prompt. Leurs champs exacts (`CMS_DEF`) et leur mise en page seront repris du prototype dès que vous me transmettrez l’export à jour (Claude Design › Partager › Exporter, ou « Send to Claude Code Web »).
+### Écarts entre le prototype et les décisions validées
+
+Les décisions validées priment ; le prototype est aligné dessus dans le code.
+
+| Sujet | Prototype | Retenu |
+|---|---|---|
+| Phases | Seeding janv. → févr., Split 1 mars → mai, Split 2 juil. → sept., Playoffs oct. → nov. | D1 : pré-saison janv. → avr., saison mai → août, Playoffs sept. → déc. Les cycles de cartes suivent ces phases. |
+| Barème LAN | 150 · 120 · 100 · 85 · 60 (5e–8e) · 20 | D7 : Rankings + 50 (150 · 140 · 132 · 125 · 119 · 114 · 110 · 106…). **À confirmer** si le prototype reflète une décision plus récente. |
+| Paiement | Carte, HelloAsso, PayPal | D5 : Stripe (carte bancaire). |
+| Mercato (onglet équipe) | Fenêtres de mercato | D1-a : transferts libres. |
 
 ## 1. Décisions (validées le 30 oct. 2026)
 
@@ -105,7 +114,7 @@ Une page interne `/admin/ui` (réservée aux admins) montrera tous les états po
 | RDV mensuels | Inscriptions réelles, résultats démo | Saisie arbitre (lobbys, placements, éliminations), recomposition TFT, cumul saison |
 | Playoffs | Démo | Génération depuis le seeding figé |
 | Compétition par jeu | Partiel | Onglets selon la phase, tirage animé, depuis `Competition` |
-| **LAN** | **Absent** | Liste, fiche, inscription équipe ou solo, paiement (mock), autorisation parentale, remboursement, résultats saisis sur place, barème |
+| **LAN & événements** | **Fait** (`/lan`, console › LAN) : fiche avec compte à rebours, onglets Infos / Tournois & tarifs / Inscrits / Résultats / Inscription, inscription équipe ou solo en 4 étapes, paiement Stripe simulé (désactivé en production tant que Stripe n’est pas branché), annulation et remboursement, saisie du classement par les arbitres, validation, points par structure (meilleur classement par jeu) | Adaptateur Stripe réel + webhook signé, billet QR, autorisation parentale (mineurs), envoi d’affiche, points LAN dans le grand livre du classement général (lot B) |
 | Actualités | Réel (posts, j’aime, commentaires, sondages) | Réactions multiples, médias (stockage), sponsorisé piloté par `AdCampaign`, notification aux abonnés |
 | Partenaires, publicités | Contenu en dur, campagnes démo | `Partner`, `AdCampaign`, mesure des impressions et clics |
 | **Administration, éditeur générique** | Sections réelles (structures, utilisateurs, annonces, sanctions, formats, audit…) | Navigation par domaine, bloc « Créer », **éditeur générique** (liste, sections numérotées, aperçu en direct, vérifications, brouillon, programmer, publier), **map pool et cycles**, saisie des RDV, règlements versionnés, publicités |
@@ -123,7 +132,7 @@ Les étapes 1 à 3 du prompt sont en grande partie faites : connexion, rôles, m
 2. **Lot B · Cœur compétitif** : Rankings et défis en base, appariements automatiques, relances et expirations, recalcul Elo ; calendrier réel ; grand livre du classement général et détail cliquable.
 3. **Lot C · Match Center** : matchs en base, veto avec pool figé, check-in et forfait automatique, chat temps réel (Ably), diffusion, OCR mocké, feuille de match, contestations et décisions d’arbitre.
 4. **Lot D · Structures et profils** : Suivre, KPI réels, statistiques par jeu, MVP et succès XP.
-5. **Lot E · Événements** : saisie des RDV et recomposition TFT, Playoffs depuis le seeding, compétitions et tirage animé, **LAN avec paiement mocké**.
+5. **Lot E · Événements** : saisie des RDV et recomposition TFT, Playoffs depuis le seeding, compétitions et tirage animé. ~~LAN avec paiement mocké~~ (fait en avance, d’après le prototype).
 6. **Lot F · Administration** : navigation par domaine, bloc Créer, **éditeur générique** (selon `CMS_DEF`), **map pool et cycles**, règlements versionnés, publicités.
 7. **Lot G · Communauté** : réactions, médias, sponsorisé, notifications aux abonnés, e-mails, 2FA, OAuth des comptes de jeu.
 8. **Lot H · Qualité** : passage complet en mobile et accessibilité, tests Playwright des parcours clés, comparaison écran par écran avec le prototype.
@@ -138,5 +147,5 @@ Les étapes 1 à 3 du prompt sont en grande partie faites : connexion, rôles, m
 ## 9. Ce qu’il me faut de votre côté
 
 1. ~~Valider les décisions D1 à D8.~~ Fait.
-2. **L’export à jour du projet Claude Design** (prototype avec LAN, `CMS_DEF`, map pool ; `Passation développeurs.md`).
+2. ~~L’export à jour du prototype.~~ Reçu. Reste à confirmer le barème LAN (voir écarts ci-dessus).
 3. Plus tard, au fil des lots : comptes Ably, Stripe, Vercel Blob, un service d’e-mail (Resend), l’application Discord, et une demande d’accès Riot RSO.

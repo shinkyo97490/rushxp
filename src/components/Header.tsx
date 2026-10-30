@@ -20,6 +20,7 @@ export function Header({ viewer }: { viewer: Viewer | null }) {
     { href: "/calendrier", label: "Calendrier", match: ["/calendrier", "/match"] },
     { href: "/competitions", label: "Compétitions", match: ["/competitions", "/playoffs"] },
     { href: "/rdv", label: "RDV mensuels", match: ["/rdv"] },
+    { href: "/lan", label: "LAN", match: ["/lan"] },
     { href: "/actualites", label: "Actualités", match: ["/actualites"] },
     { href: "/recrutement", label: "Recrutement", match: ["/recrutement"] },
     { href: "/partenaires", label: "Partenaires", match: ["/partenaires"] },

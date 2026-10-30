@@ -36,3 +36,31 @@ export const LAN_BONUS = 50;
 export function lanPoints(rank: number): number {
   return structurePoints(rank) + LAN_BONUS;
 }
+
+/** Rangs affichés sur la page LAN (1er → 8e). */
+export const LAN_SCALE_PREVIEW: [string, number][] = [
+  ["1er", lanPoints(1)],
+  ["2e", lanPoints(2)],
+  ["3e", lanPoints(3)],
+  ["4e", lanPoints(4)],
+  ["5e", lanPoints(5)],
+  ["8e", lanPoints(8)],
+];
+
+/**
+ * Points LAN d'une structure : par jeu, seul son meilleur classement compte (un joueur solo rapporte
+ * ses points à sa structure), puis on additionne les jeux.
+ */
+export function lanStructurePoints(rows: { game: string; place: number; structure: string | null }[]) {
+  const best = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    if (!r.structure) continue;
+    const pts = lanPoints(r.place);
+    const g = best.get(r.structure) ?? new Map<string, number>();
+    if ((g.get(r.game) ?? 0) < pts) g.set(r.game, pts);
+    best.set(r.structure, g);
+  }
+  return [...best.entries()]
+    .map(([structure, g]) => ({ structure, points: [...g.values()].reduce((a, b) => a + b, 0), byGame: Object.fromEntries(g) }))
+    .sort((a, b) => b.points - a.points || a.structure.localeCompare(b.structure));
+}

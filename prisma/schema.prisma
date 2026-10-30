@@ -824,3 +824,91 @@ model Job {
 
   @@index([status, runAt])
 }
+
+// ─── LAN & événements physiques ──────────────────────────────────
+
+enum LanStatus {
+  DRAFT // brouillon, invisible
+  ANNOUNCED // annoncé, inscriptions bientôt
+  OPEN // inscriptions ouvertes
+  CLOSED // inscriptions fermées
+  DONE // terminé, résultats validés
+}
+
+model LanEvent {
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  name             String
+  organizer        String
+  place            String
+  startsAt         DateTime?
+  endsAt           DateTime?
+  description      String    @default("")
+  posterUrl        String?
+  status           LanStatus @default(DRAFT)
+  refundUntil      DateTime?
+  visitorPassCents Int?
+  countsForGeneral Boolean   @default(true)
+  /// [{ day: "Samedi 21 novembre", items: [["09:00", "Accueil"]] }]
+  program          Json      @default("[]")
+  resultsAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  tournaments LanTournament[]
+}
+
+model LanTournament {
+  id         String  @id @default(cuid())
+  lanId      String
+  game       String
+  format     String
+  priceCents Int?
+  capacity   Int
+  day        String?
+
+  lan           LanEvent          @relation(fields: [lanId], references: [id], onDelete: Cascade)
+  registrations LanRegistration[]
+  results       LanResult[]
+
+  @@unique([lanId, game])
+}
+
+enum LanRegStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+model LanRegistration {
+  id           String       @id @default(cuid())
+  tournamentId String
+  /// roster (équipe) ou utilisateur (solo)
+  entityId     String
+  name         String
+  structureId  String?
+  members      String[]
+  order        String       @unique
+  status       LanRegStatus @default(PENDING)
+  amountCents  Int
+  checkoutId   String?
+  createdById  String
+  createdAt    DateTime     @default(now())
+  paidAt       DateTime?
+
+  tournament LanTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, entityId])
+}
+
+/// Classement final d'un tournoi LAN, saisi par les arbitres.
+model LanResult {
+  tournamentId String
+  place        Int
+  name         String
+  structureId  String?
+
+  tournament LanTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@id([tournamentId, place])
+}

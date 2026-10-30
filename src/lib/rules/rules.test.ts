@@ -190,13 +190,26 @@ describe("calendrier de saison", () => {
   });
 });
 
-import { lanPoints } from "./scales";
+import { lanPoints, lanStructurePoints } from "./scales";
 
 describe("barème LAN", () => {
   it("barème des Rankings + 50 points", () => {
     expect([1, 2, 3, 8].map(lanPoints)).toEqual([150, 140, 132, 106]);
     expect(lanPoints(9)).toBe(102);
     expect(lanPoints(40)).toBe(55);
+  });
+  it("par jeu, seul le meilleur classement de la structure compte", () => {
+    const r = lanStructurePoints([
+      { game: "val", place: 1, structure: "Nova" },
+      { game: "val", place: 3, structure: "Nova" },
+      { game: "fc", place: 2, structure: "Nova" },
+      { game: "fc", place: 1, structure: "Atlas" },
+      { game: "tek", place: 1, structure: null },
+    ]);
+    expect(r).toEqual([
+      { structure: "Nova", points: 290, byGame: { val: 150, fc: 140 } },
+      { structure: "Atlas", points: 150, byGame: { fc: 150 } },
+    ]);
   });
 });
 

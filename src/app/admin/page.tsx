@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
-import { getGame } from "@/lib/data/games";
+import { GAMES, getGame } from "@/lib/data/games";
 import { DEMO_CAMPAIGNS, DEMO_RESULTS, RESULT_STATUS } from "@/lib/data/demo-competition";
 import { K_DEFAULT, K_PLACEMENT, PLACEMENT_MATCHES, START_SCORE } from "@/lib/rules/elo";
 import { MAX_PENDING_OUT, PAIR_MAX_COUNTED, PAIR_WINDOW_DAYS, REMATCH_DAYS, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
@@ -13,22 +13,25 @@ import { LAN_BONUS, structurePoints } from "@/lib/rules/scales";
 import { DIVISION_SIZE } from "@/lib/data/repo";
 import { Empty } from "@/components/PageHeader";
 import { integrationStatus } from "@/lib/integrations";
+import { LanEditor, LanResultsEditor, ValidateLanResults, type LanForm } from "@/components/admin/LanAdmin";
+import { euros, getLan, LAN_STATUS, lanDates, listLans, programToText } from "@/lib/lan/queries";
+import { Badge } from "@/components/ui";
 import { AdModeration, BroadcastForm, GameFormatForm, LiftSanction, SanctionForm, StructureReview, UserControls } from "@/components/admin/AdminClient";
 
 export const metadata: Metadata = { title: "Administration" };
 
 const NAV: { group: string; items: [string, string][] }[] = [
   { group: "Pilotage", items: [["dashboard", "Tableau de bord"]] },
-  { group: "Compétition", items: [["results", "Résultats"], ["sanctions", "Sanctions"], ["formats", "Formats & barèmes"], ["rankcfg", "Paramètres Rankings"]] },
+  { group: "Compétition", items: [["lan", "LAN"], ["results", "Résultats"], ["sanctions", "Sanctions"], ["formats", "Formats & barèmes"], ["rankcfg", "Paramètres Rankings"]] },
   { group: "Communauté", items: [["structs", "Structures"], ["users", "Utilisateurs"], ["ads", "Annonces"], ["posts", "Publications"], ["notifs", "Notifications"]] },
   { group: "Commercial", items: [["leads", "Demandes partenaires"], ["campaigns", "Publicités"]] },
   { group: "Système", items: [["audit", "Journal d’audit"]] },
 ];
-const REFEREE_OK = ["dashboard", "results", "sanctions"];
+const REFEREE_OK = ["dashboard", "lan", "results", "sanctions"];
 
 const fmt = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(d);
 
-export default async function AdminPage({ searchParams }: { searchParams: Promise<{ s?: string; q?: string; f?: string; msg?: string }> }) {
+export default async function AdminPage({ searchParams }: { searchParams: Promise<{ s?: string; q?: string; f?: string; msg?: string; id?: string }> }) {
   const viewer = await getViewer();
   // Contrôle serveur : la console n'existe pas pour les autres rôles.
   if (!viewer || (viewer.role !== "admin" && viewer.role !== "arbitre")) notFound();
@@ -92,6 +95,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {sec === "formats" && <Formats />}
           {sec === "rankcfg" && <RankConfig />}
           {sec === "results" && <Results />}
+          {sec === "lan" && <LanSection id={sp.id} isAdmin={isAdmin} />}
           {sec === "leads" && <Leads />}
           {sec === "campaigns" && <Campaigns />}
           {sec === "audit" && <Audit />}
@@ -497,6 +501,104 @@ async function Audit() {
         ))}
         {list.length === 0 && <Empty>Journal vide.</Empty>}
       </div>
+    </section>
+  );
+}
+
+// ─── LAN (CMS) ───────────────────────────────────────────────────
+
+/** Date → valeur d'un champ datetime-local, à l'heure de La Réunion. */
+function reunionInput(d: Date | null, dateOnly = false) {
+  if (!d) return "";
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d).map((x) => [x.type, x.value]));
+  return dateOnly ? `${p.year}-${p.month}-${p.day}` : `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
+}
+
+async function LanSection({ id, isAdmin }: { id?: string; isAdmin: boolean }) {
+  const games = GAMES.map((g) => ({ id: g.id, name: g.name, solo: g.rosterSize === 1, format: `${g.format}${g.series ? ` · ${g.series}` : ""}` }));
+  if (id === "new" && isAdmin) {
+    const empty: LanForm = { name: "", organizer: "", place: "", startsAt: "", endsAt: "", description: "", posterUrl: "", status: "DRAFT", refundUntil: "", visitorPass: "", countsForGeneral: true, program: "", tournaments: [] };
+    return (
+      <div className="grid gap-3">
+        <Link href="/admin?s=lan" className="text-[13px]">← Tous les événements</Link>
+        <LanEditor initial={empty} games={games} />
+      </div>
+    );
+  }
+  const lan = id ? await getLan(id) : null;
+  if (lan) {
+    const form: LanForm = {
+      id: lan.id,
+      name: lan.name,
+      organizer: lan.organizer,
+      place: lan.place,
+      startsAt: reunionInput(lan.startsAt),
+      endsAt: reunionInput(lan.endsAt),
+      description: lan.description,
+      posterUrl: lan.posterUrl ?? "",
+      status: lan.status,
+      refundUntil: reunionInput(lan.refundUntil, true),
+      visitorPass: lan.visitorPassCents == null ? "" : String(lan.visitorPassCents / 100),
+      countsForGeneral: lan.countsForGeneral,
+      program: programToText(lan.program),
+      tournaments: lan.tournaments.map((t) => ({ game: t.game, format: t.format, price: t.priceCents == null ? "" : String(t.priceCents / 100), capacity: String(t.capacity), day: t.day ?? "" })),
+    };
+    const done = lan.status === "DONE";
+    const missing = lan.tournaments.filter((t) => t.registrations.some((r) => r.status === "PAID") && !t.results.length).length;
+    return (
+      <div className="grid gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/admin?s=lan" className="text-[13px]">← Tous les événements</Link>
+          <Link href={`/lan?e=${lan.slug}`} className="text-[13px]">Voir la page publique →</Link>
+        </div>
+        {isAdmin && <LanEditor key={lan.id} initial={form} games={games} />}
+        <section className="card">
+          <div className="card-head"><span className="card-title">Résultats · saisie arbitre</span><span className="card-meta">{done ? "Validés et publiés" : "Inscriptions payées, du 1er au 8e"}</span></div>
+          {lan.tournaments.length === 0 && <p className="px-[18px] py-4 text-sm text-grey">Ajoutez d’abord des tournois.</p>}
+          {lan.tournaments.map((t) => (
+            <LanResultsEditor
+              key={t.id}
+              tournamentId={t.id}
+              title={getGame(t.game)?.name ?? t.game}
+              entries={t.registrations.filter((r) => r.status === "PAID").map((r) => ({ id: r.id, name: r.name }))}
+              initial={t.results.map((r) => t.registrations.find((x) => x.name === r.name)?.id ?? "")}
+              locked={done}
+            />
+          ))}
+          {isAdmin && !done && lan.tournaments.length > 0 && (
+            <ValidateLanResults lanId={lan.id} slug={lan.slug} disabledReason={missing ? `${missing} tournoi(s) sans classement` : undefined} />
+          )}
+        </section>
+      </div>
+    );
+  }
+  const lans = await listLans(true);
+  return (
+    <section className="card">
+      <div className="card-head">
+        <span className="card-title">Événements</span>
+        {isAdmin && <Link href="/admin?s=lan&id=new" className="btn btn-primary btn-sm">Créer une LAN / un événement</Link>}
+      </div>
+      {lans.length === 0 ? (
+        <Empty>Aucun événement. Créez la première LAN : elle reste invisible tant qu’elle est en brouillon.</Empty>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead><tr className="text-left text-xs text-grey">{["Événement", "Dates", "Statut", "Tournois", "Inscrits"].map((h) => <th key={h} className="px-[18px] py-2 font-semibold">{h}</th>)}</tr></thead>
+            <tbody>
+              {lans.map((l) => (
+                <tr key={l.id} className="border-t border-surface-2">
+                  <td className="px-[18px] py-2.5"><Link href={`/admin?s=lan&id=${l.slug}`} className="font-semibold text-ink">{l.name}</Link><div className="text-xs text-grey">{l.organizer} · {l.place}</div></td>
+                  <td className="px-[18px] py-2.5 text-silver">{lanDates(l.startsAt, l.endsAt)}</td>
+                  <td className="px-[18px] py-2.5"><Badge tone={LAN_STATUS[l.status].tone}>{LAN_STATUS[l.status].label}</Badge></td>
+                  <td className="px-[18px] py-2.5 text-silver">{l.tournaments.map((t) => getGame(t.game)?.short ?? t.game).join(" · ") || "—"}</td>
+                  <td className="px-[18px] py-2.5 font-mono">{l.tournaments.reduce((a, t) => a + t._count.registrations, 0)}{l.tournaments.some((t) => t.priceCents != null) ? <span className="text-grey"> · dès {euros(Math.min(...l.tournaments.filter((t) => t.priceCents != null).map((t) => t.priceCents!)))}</span> : null}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }

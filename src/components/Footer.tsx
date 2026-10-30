@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 const COLS: [string, [string, string][]][] = [
-  ["Compétition", [["RushXP Rankings", "/rankings"], ["Classement général", "/classement"], ["RDV mensuels", "/rdv"], ["Playoffs", "/playoffs"]]],
+  ["Compétition", [["RushXP Rankings", "/rankings"], ["Classement général", "/classement"], ["RDV mensuels", "/rdv"], ["LAN & événements", "/lan"], ["Playoffs", "/playoffs"]]],
   ["Communauté", [["Recrutement", "/recrutement"], ["Actualités", "/actualites"], ["Partenaires", "/partenaires"]]],
   ["Infos", [["Le circuit", "/le-circuit"], ["Règlement", "/reglement"], ["Devenir partenaire", "/partenaires#devenir-partenaire"]]],
 ];
