@@ -1,4 +1,6 @@
-/** Dates des rendez-vous mensuels : un samedi par mois et par jeu, pas de RDV en juin (mercato) ni en décembre–février. */
+/** Dates des rendez-vous mensuels : un samedi par mois et par jeu, pendant les phases qui autorisent les RDV (pré-saison et saison régulière par défaut). */
+
+import { defaultSeason, monthlyEventsAllowed } from "@/lib/rules/season";
 
 const RULE: Record<"tft" | "wz" | "apex", { nth: number | "last"; hour: number; minute: number }> = {
   tft: { nth: 3, hour: 18, minute: 0 },
@@ -6,7 +8,8 @@ const RULE: Record<"tft" | "wz" | "apex", { nth: number | "last"; hour: number; 
   apex: { nth: "last", hour: 20, minute: 0 },
 };
 
-const ACTIVE_MONTHS = [2, 3, 4, 6, 7, 8, 9, 10]; // mars → mai, juillet → novembre (0 = janvier)
+/** Par défaut : calendrier de saison validé. En production, la page passe les phases lues en base. */
+const defaultAllowed = (d: Date) => monthlyEventsAllowed(defaultSeason(d.getFullYear()).phases, d);
 
 function saturdayOf(year: number, month: number, nth: number | "last") {
   const sats: number[] = [];
@@ -19,18 +22,21 @@ function saturdayOf(year: number, month: number, nth: number | "last") {
 }
 
 /** Prochain RDV à venir pour ce jeu (à partir de `from`). */
-export function nextEventDate(game: "tft" | "wz" | "apex", from: Date): Date {
+export function nextEventDate(game: "tft" | "wz" | "apex", from: Date, allowed: (d: Date) => boolean = defaultAllowed): Date {
   const r = RULE[game];
   for (let i = 0; i < 24; i++) {
     const y = from.getFullYear() + Math.floor((from.getMonth() + i) / 12);
     const m = (from.getMonth() + i) % 12;
-    if (!ACTIVE_MONTHS.includes(m)) continue;
-    const d = new Date(y, m, saturdayOf(y, m, r.nth), r.hour, r.minute);
+    // Heure locale de La Réunion (UTC+4), quel que soit le fuseau du serveur.
+    const day = saturdayOf(y, m, r.nth);
+    const d = new Date(`${y}-${String(m + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(r.hour).padStart(2, "0")}:${String(r.minute).padStart(2, "0")}:00+04:00`);
+    if (!allowed(d)) continue;
     if (d > from) return d;
   }
   throw new Error("Aucune date de RDV trouvée");
 }
 
 export function monthKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const [y, m] = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric", month: "2-digit" }).format(d).split("-");
+  return `${y}-${m}`;
 }

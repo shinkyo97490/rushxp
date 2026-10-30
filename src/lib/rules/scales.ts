@@ -28,3 +28,11 @@ export function lobbyPoints(scale: LobbyScale, placement: number, kills = 0): nu
   if (!Number.isInteger(placement) || placement < 1) throw new RangeError(`place invalide : ${placement}`);
   return (scale.placement[placement - 1] ?? 0) + scale.pointPerKill * Math.max(0, kills);
 }
+
+/** Bonus des LAN (décision du 30 oct. 2026) : barème des Rankings + 50 points par rang final. */
+export const LAN_BONUS = 50;
+
+/** Points au classement général selon le rang final d'une structure dans une LAN. */
+export function lanPoints(rank: number): number {
+  return structurePoints(rank) + LAN_BONUS;
+}

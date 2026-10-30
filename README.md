@@ -29,6 +29,8 @@ npm test               # tests des règles métier
 | `DATABASE_URL_UNPOOLED` | Connexion directe pour les migrations. Ajoutée par Neon |
 | `BETTER_AUTH_SECRET` | Secret de signature des sessions, **à créer** (`openssl rand -base64 32`). Sans lui, personne ne peut se connecter en production |
 | `BETTER_AUTH_URL` | Facultatif sur Vercel (URL déduite automatiquement) |
+| `CRON_SECRET` | Secret des tâches programmées (`/api/cron/jobs`), **à créer**. Vercel Cron l’envoie automatiquement |
+| `ABLY_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `BLOB_READ_WRITE_TOKEN`, `RESEND_API_KEY`, `OCR_API_KEY` | Intégrations. Tant qu’elles sont vides, une version simulée prend le relais (état visible dans Administration › Tableau de bord) |
 
 ### Déploiement (Vercel)
 
@@ -90,15 +92,21 @@ Chaque écran du prototype a sa route.
 | **Démonstration (étiquetée)** | RushXP Rankings et défis, calendrier, Match Center (veto VAL / CDL, lobby RL, score FC, set Tekken, lobby TFT, check-in, diffusion, OCR, chat), feuille de match, Playoffs, résultats des RDV passés, Joueurs & MVP, file de contestations, campagnes publicitaires |
 | **Contenu éditorial** | Le circuit, règlement, partenaires, états système (`/etat/maintenance`, `/etat/suspendu`, `/etat/connexion-perdue`) |
 
-**Lots suivants (proposés)**
-3. Rankings et défis en base (RankingEntry, Challenge, Match), calendrier réel, Match Center connecté au serveur, seeding figé.
-4. Temps réel (chat de match, veto, notifications), OCR des captures, saisie des RDV par l’arbitre, contestations (Dispute).
-5. E-mails transactionnels, OAuth Discord et éditeurs de jeux, envoi de médias (logos, photos, captures), 2FA, transferts du mercato.
+**Lot A · fondations (fait)** · voir `PLAN.md`
+- Saison paramétrable en base (`Season`, `SeasonPhase`) : pré-saison janv. → avr. (hors classement général), saison régulière mai → août, Playoffs sept. → déc., seeding figé le 31 août à 23:59. Calendrier, textes et règlement mis à jour.
+- Pas de mercato : transferts libres toute l’année (départ automatique de l’ancienne structure, historique, notifications).
+- Barème LAN : barème des Rankings + 50 points.
+- Bibliothèque de composants `src/components/ui/` avec tous les états, revue visuelle sur `/admin/ui`.
+- File de tâches (`Job`) et route `/api/cron/jobs` (Vercel Cron quotidien à minuit, heure de La Réunion).
+- Interfaces d’intégration avec versions simulées : temps réel, OCR, paiement (Stripe), stockage, e-mails.
+
+**Lots suivants**
+Lots B à H : voir `PLAN.md` §7 (cœur compétitif, Match Center, structures et profils, événements et LAN, administration, communauté, qualité).
 
 ## Points à valider avec RushXP
 
 - **Départage au classement général** : la spec demande d'afficher la règle sans la définir. Le texte affiché (nombre de jeux classés, puis meilleur rang, puis résultat direct) est une **proposition**.
 - « Prochaine échéance » de l'accueil : donnée de démonstration, à relier au calendrier réel.
-- État des défis en démo : il est stocké dans le navigateur (`sessionStorage`). Les Rankings et les défis passeront sur la base au lot 2 (rosters complets, puis entrée en placement).
+- État des défis en démo : il est stocké dans le navigateur (`sessionStorage`). Les Rankings et les défis passent en base au lot B.
 - Pas encore d'e-mail transactionnel : ni vérification d'adresse ni mot de passe oublié. Il faut choisir un service d'envoi (ex. Resend).
 - Connexion Discord : il faut créer une application Discord (identifiants OAuth).

@@ -1,11 +1,9 @@
-/** Règles de roster et de mercato (SPEC_METIER §6). Fonctions pures. */
+/**
+ * Règles de roster et de transfert. Fonctions pures.
+ * Pas de mercato (décision du 30 oct. 2026) : circuit amateur, transferts possibles toute l’année.
+ */
 
 export const MAX_SUBS = 2;
-
-/** Mercato : transferts entre structures en juin uniquement. Les agents libres signent toute l'année. */
-export function isMercatoOpen(d: Date): boolean {
-  return d.getMonth() === 5;
-}
 
 export interface RosterCount {
   rosterSize: number; // titulaires requis par le format
@@ -24,9 +22,11 @@ export function isRosterComplete(c: Pick<RosterCount, "rosterSize" | "starters">
   return c.starters >= c.rosterSize;
 }
 
-/** Peut-on rejoindre une nouvelle structure ? Libre : oui. Sous contrat : seulement pendant le mercato (transfert). */
-export function joinBlock(currentStructureId: string | null, targetStructureId: string, now: Date): string | null {
-  if (!currentStructureId || currentStructureId === targetStructureId) return null;
-  if (!isMercatoOpen(now)) return "Vous êtes sous contrat avec une autre structure : un transfert n’est possible que pendant le mercato (juin).";
-  return "Transfert : il faut l’accord des deux structures et la validation RushXP. Faites une demande de transfert.";
+/**
+ * Nature d'une arrivée dans une structure :
+ * SIGNING = agent libre ; TRANSFER = quitte automatiquement sa structure actuelle ; SAME = déjà sous contrat ici.
+ */
+export function transferKind(currentStructureId: string | null, targetStructureId: string): "SIGNING" | "TRANSFER" | "SAME" {
+  if (!currentStructureId) return "SIGNING";
+  return currentStructureId === targetStructureId ? "SAME" : "TRANSFER";
 }

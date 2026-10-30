@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { getGame } from "@/lib/data/games";
 import { EVENT_FORMATS } from "@/lib/data/content";
-import { EVENT_DONE, EVENT_MONTHS, eventStandings } from "@/lib/data/demo-competition";
+import { EVENT_DONE, EVENT_MONTHS, PRESEASON_MONTHS, eventStandings } from "@/lib/data/demo-competition";
 import { LOBBY_SCALES } from "@/lib/rules/scales";
 import { ensureNextEvent } from "@/lib/events/queries";
 import { DemoNotice, PageHeader } from "@/components/PageHeader";
@@ -42,8 +42,8 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "long" });
   const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(ev.date);
 
-  const month = Math.min(8, Math.max(0, Number(sp.mois ?? 7)));
-  const shownMonth = EVENT_DONE.has(month) ? month : 7;
+  const month = Math.min(EVENT_MONTHS.length - 1, Math.max(0, Number(sp.mois ?? EVENT_MONTHS.length - 1)));
+  const shownMonth = EVENT_DONE.has(month) ? month : EVENT_MONTHS.length - 1;
   const view = sp.vue && /^[0-5]$/.test(sp.vue) ? Number(sp.vue) : -1;
   const standing = eventStandings(game, shownMonth);
   const q = (o: Record<string, string | number | undefined>) => {
@@ -124,13 +124,13 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
       <nav className="mt-5 flex overflow-x-auto border border-line bg-surface" aria-label="Mois">
         {EVENT_MONTHS.map((m, i) => {
           const done = EVENT_DONE.has(i);
-          const merc = m === "Juin";
-          const next = i === 8;
+          const pre = i < PRESEASON_MONTHS;
           const cls = `min-w-[96px] flex-1 border-r border-b-2 border-r-line px-3 py-2 text-center ${i === shownMonth ? "border-b-orange bg-surface-2" : "border-b-transparent"}`;
           const inner = (
             <>
               <div className="font-display text-base font-bold">{m}</div>
-              <div className={`text-[11px] ${next ? "text-orange" : merc ? "text-grey" : "text-silver"}`}>{merc ? "Mercato" : next ? "À venir" : done ? "✓ Terminé" : ""}</div>
+              <div className="text-[11px] text-silver">{done ? "✓ Terminé" : ""}</div>
+              <div className={`text-[10px] font-bold uppercase tracking-[.06em] ${pre ? "text-grey" : "text-orange"}`}>{pre ? "Pré-saison" : "Saison"}</div>
             </>
           );
           return done ? <Link key={m} href={`/rdv?jeu=${game}&mois=${i}`} className={`${cls} text-ink hover:text-ink`}>{inner}</Link> : <div key={m} className={cls}>{inner}</div>;
@@ -139,7 +139,7 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
 
       <section className="card mt-4">
         <div className="card-head">
-          <span className="card-title">Résultats · {EVENT_MONTHS[shownMonth]}</span>
+          <span className="card-title">Résultats · {EVENT_MONTHS[shownMonth]}{shownMonth < PRESEASON_MONTHS ? " · pré-saison, hors classement général" : ""}</span>
           <span className="flex flex-wrap gap-1">
             <Link href={q({ vue: undefined })} className={`btn btn-sm !min-h-8 !px-2.5 ${view < 0 ? "btn-secondary" : "btn-tertiary"}`}>Classement</Link>
             {[0, 1, 2, 3, 4, 5].map((r) => <Link key={r} href={q({ vue: r })} className={`btn btn-sm !min-h-8 !px-2.5 ${view === r ? "btn-secondary" : "btn-tertiary"}`}>M{r + 1}</Link>)}

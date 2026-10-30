@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { GAMES, getGame } from "@/lib/data/games";
 import { RULES_GAME } from "@/lib/data/content";
 import { demoMatches, topOf } from "@/lib/data/demo-competition";
-import { PHASES, phaseState } from "@/lib/season";
+import { getSeason } from "@/lib/season";
+import { SeasonTimeline } from "@/components/SeasonTimeline";
 import { DemoNotice, Empty, TabLinks } from "@/components/PageHeader";
 import type { ChallengeGameId } from "@/lib/data/games";
 
@@ -34,6 +35,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
     orderBy: { createdAt: "asc" },
   });
   const now = new Date();
+  const season = await getSeason(now.getFullYear());
   const matches = demoMatches().filter((m) => m.game === g.id);
   const base = `/competitions?jeu=${g.id}`;
 
@@ -72,16 +74,8 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
 
       <div className="container-rx">
         {!lobby && (
-          <div className="mt-4 grid border border-line bg-surface [grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr))]">
-            {PHASES.map((p) => {
-              const st = phaseState(p, now);
-              return (
-                <div key={p.key} className={`border-r border-b border-line px-4 py-3 ${st === "current" ? "bg-active-tint" : ""}`}>
-                  <div className={`text-[11px] font-bold uppercase tracking-[.1em] ${st === "current" ? "text-orange" : "text-grey"}`}>{st === "done" ? "✓ Terminé" : st === "current" ? "● En cours" : "À venir"}</div>
-                  <div className="font-display text-lg font-bold">{p.label}</div>
-                </div>
-              );
-            })}
+          <div className="mt-4">
+            <SeasonTimeline phases={season.phases} now={now} compact />
           </div>
         )}
         <TabLinks
@@ -99,7 +93,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
               {!lobby && (
                 <Link href={`/playoffs?jeu=${g.id}`} className="card flex flex-wrap items-center gap-3 px-[18px] py-3.5 text-ink hover:border-orange hover:text-ink">
                   <span className="font-display text-xl font-bold">Arbre des Playoffs</span>
-                  <span className="flex-1 text-sm text-grey">Top 8 de la Division 1 au seeding du 30 sept. · élimination directe</span>
+                  <span className="flex-1 text-sm text-grey">Top 8 de la Division 1 au seeding du 31 août · élimination directe</span>
                   <span className="text-[13px] font-semibold text-orange">Voir l’arbre →</span>
                 </Link>
               )}

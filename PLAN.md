@@ -14,20 +14,20 @@
 
 **Conséquence :** les écrans LAN, éditeur générique et map pool sont planifiés d’après le texte du prompt. Leurs champs exacts (`CMS_DEF`) et leur mise en page seront repris du prototype dès que vous me transmettrez l’export à jour (Claude Design › Partager › Exporter, ou « Send to Claude Code Web »).
 
-## 1. Décisions à valider
+## 1. Décisions (validées le 30 oct. 2026)
 
-| # | Sujet | Proposition | Pourquoi |
-|---|---|---|---|
-| D1 | **Calendrier de saison** | Le prompt décrit Placement / Split 1 / Mercato / Split 2 / Playoffs oct.–nov. Vous m’avez écrit ensuite : **pré-saison janv.→avr., saison régulière mai→août, Playoffs sept.→déc.** Je propose de **rendre la saison paramétrable en base** (table `SeasonPhase`), et de démarrer avec votre dernière version. | Les deux calendriers deviennent une simple configuration admin ; rien n’est codé en dur. |
-| D1-a | Mercato dans ce calendrier | **Fin avril → mi-mai** (entre pré-saison et saison régulière). | Juin tombe en pleine saison régulière. |
-| D1-b | Date du seeding figé | **31 août, 23:59** | Fin de la saison régulière, avant les Playoffs de septembre. |
-| D2 | Authentification | **Garder Better Auth** (déjà en production) plutôt qu’Auth.js | Même périmètre : e-mail, Discord, OAuth générique (Riot RSO), sessions en base, 2FA par plugin. Évite de réécrire ce qui marche. |
-| D3 | Temps réel | **Ably** (ou Pusher), derrière une interface `Realtime` | Vercel n’héberge pas de serveur WebSocket. Mock en développement. |
-| D4 | File de tâches et activations programmées | **Table `Job` en base + Vercel Cron** (toutes les minutes), avec traitement idempotent | Pas de service tiers. Couvre l’OCR, les recalculs, les cycles de cartes à 00:00 et les publications programmées. |
-| D5 | Paiement des LAN | **HelloAsso** si l’organisateur est une association (sans commission), Stripe sinon. Une interface `Payments`, mock en développement. | À confirmer selon le statut juridique de RushXP et des associations partenaires. |
-| D6 | Stockage | **Vercel Blob** (ou Cloudflare R2), derrière une interface `Storage` | Natif sur Vercel, CDN inclus. |
-| D7 | Barème LAN | À fournir. Par défaut : **même barème que les Rankings** (100 / 90 / 82…) appliqué au classement final de la LAN, avec un coefficient par LAN. | Le prompt dit « selon leur barème » sans le définir. |
-| D8 | Points de la pré-saison | Les matchs de pré-saison **classent** (Elo), mais **ne comptent pas** au classement général. | Évite d’avantager les structures inscrites tôt. |
+| # | Sujet | Décision |
+|---|---|---|
+| D1 | Calendrier de saison | **Pré-saison janv. → avr. · saison régulière mai → août · Playoffs sept. → déc.** Paramétrable en base (`Season`, `SeasonPhase`). |
+| D1-a | Mercato | **Pas de mercato.** Esport amateur : transferts possibles toute l’année. Le joueur rejoint sa nouvelle structure et quitte l’ancienne automatiquement (historique conservé, anciens gestionnaires notifiés). Garde-fou : **un joueur ne dispute les Playoffs que pour une seule équipe par saison** (contrôlé quand les matchs seront en base). |
+| D1-b | Seeding figé | **31 août, 23:59** (horodatage + empreinte). |
+| D2 | Authentification | Better Auth (déjà en production). |
+| D3 | Temps réel | Ably, derrière une interface `Realtime` (mock en développement). |
+| D4 | Tâches programmées | Table `Job` + route `/api/cron/jobs` protégée par `CRON_SECRET`. Sur l’offre Vercel Hobby, le cron Vercel ne tourne qu’une fois par jour : pour un passage chaque minute, offre Pro ou service de déclenchement externe. |
+| D5 | Paiement des LAN | **Stripe**, derrière une interface `Payments` (mock en développement). |
+| D6 | Stockage | Vercel Blob, derrière une interface `Storage`. |
+| D7 | Barème LAN | **Barème des Rankings + 50 points** (150 / 140 / 132 / 125 / 119 / 114 / 110 / 106, puis −4 par rang, minimum 55). |
+| D8 | Pré-saison | Les matchs classent (Elo) mais **ne comptent pas** au classement général. |
 
 ## 2. Architecture
 
@@ -36,7 +36,7 @@ Next.js 16 (App Router, Server Components, Server Actions) · TypeScript strict
 ├─ src/app/                 routes (pages + api/cron + api/webhooks)
 ├─ src/components/ui/       bibliothèque : Button, Field, Tabs, Badge, Card, Table, Modal, Toast, ChatBlock, PostCard, AdSlot…
 ├─ src/components/<domaine>/ composants métier (rankings, match, team, lan, admin/cms…)
-├─ src/lib/rules/           règles pures et testées (Elo, éligibilité, barèmes, roster, mercato, cycles de cartes, saison)
+├─ src/lib/rules/           règles pures et testées (Elo, éligibilité, barèmes, roster et transferts, cycles de cartes, saison)
 ├─ src/lib/<domaine>/       actions serveur ("use server") + requêtes (server-only), droits vérifiés à chaque action
 ├─ src/lib/integrations/    interfaces + mocks : realtime, ocr, payments, storage, email, oauth-games, streams
 └─ prisma/                  schéma, migrations, seed (référentiel) + seed:dev (démo, jamais en production)
@@ -54,7 +54,7 @@ Existant (36 modèles) : comptes et sessions, jeux, structures, équipes et rost
 
 | Domaine | Modèles | Notes |
 |---|---|---|
-| Saison | `Season`, `SeasonPhase` (kind: PRESEASON / REGULAR / MERCATO / PLAYOFFS / BREAK, startsAt, endsAt, countsForGeneral) | Remplace les constantes de `src/lib/season.ts` (D1) |
+| Saison | `Season`, `SeasonPhase` (kind: PRESEASON / REGULAR / PLAYOFFS / BREAK, startsAt, endsAt, countsForGeneral, monthlyEvents) | Remplace les constantes de `src/lib/season.ts` (D1) |
 | Classement général | `PointsLedger` (structureId, game, source: RANKINGS / RDV / LAN, refId, points, computedAt, reason) | Chaque recalcul réécrit le grand livre : le détail cliquable « d’où viennent les points » en découle |
 | Défis | `Challenge` : + `proposedSlots` validés, `remindedAt`, `autoPaired` ; `ChallengeSlot` si besoin | Relance à 24 h et expiration à 48 h par `Job` |
 | Match | `Match` : + `checkInDeadline`, `forfeitBy` ; `MatchEvent` (journal officiel) ; `ChatMessage` (kind: SYSTEM / USER / REFEREE) ; `StreamLink` (platform, url, official, addedBy) ; `MatchGame` (manche : carte, mode, score, personnages) | Veto existant conservé, avec le pool figé au démarrage |
@@ -99,7 +99,7 @@ Une page interne `/admin/ui` (réservée aux admins) montrera tous les états po
 | Match Center | Interface complète par jeu, **état local** | Persistance, temps réel, check-in avec forfait automatique, diffusion annoncée dans le chat, OCR mocké derrière l’interface, journal officiel |
 | Feuille de match | Démo | `PlayerMatchStat`, liens depuis profils et calendrier |
 | Espace arbitre | Signalements réels, contestations démo | `Dispute` en base, preuve à côté des valeurs, décision motivée, sanction |
-| Structures, équipes, recrutement, mercato | **Réel** | Bouton Suivre, KPI réels (rang, points, écart au leader, titres), mercato dans la fenêtre paramétrée, transferts à trois validations |
+| Structures, équipes, recrutement, transferts | **Réel** | Bouton Suivre, KPI réels (rang, points, écart au leader, titres) |
 | Profil joueur | Réel (sans statistiques) | Statistiques par jeu, forme sur 10 matchs, distinctions |
 | Joueurs & MVP | Démo | Élection MVP par match, succès XP réels |
 | RDV mensuels | Inscriptions réelles, résultats démo | Saisie arbitre (lobbys, placements, éliminations), recomposition TFT, cumul saison |
@@ -122,7 +122,7 @@ Les étapes 1 à 3 du prompt sont en grande partie faites : connexion, rôles, m
 1. **Lot A · Fondations** : `src/components/ui/` avec tous les états, et migration progressive des pages vers ces composants ; `Season` / `SeasonPhase` ; seed de développement séparé ; `Job` + Vercel Cron ; interfaces d’intégration avec mocks.
 2. **Lot B · Cœur compétitif** : Rankings et défis en base, appariements automatiques, relances et expirations, recalcul Elo ; calendrier réel ; grand livre du classement général et détail cliquable.
 3. **Lot C · Match Center** : matchs en base, veto avec pool figé, check-in et forfait automatique, chat temps réel (Ably), diffusion, OCR mocké, feuille de match, contestations et décisions d’arbitre.
-4. **Lot D · Structures et profils** : Suivre, KPI réels, statistiques par jeu, mercato paramétré, transferts à trois validations, MVP et succès XP.
+4. **Lot D · Structures et profils** : Suivre, KPI réels, statistiques par jeu, MVP et succès XP.
 5. **Lot E · Événements** : saisie des RDV et recomposition TFT, Playoffs depuis le seeding, compétitions et tirage animé, **LAN avec paiement mocké**.
 6. **Lot F · Administration** : navigation par domaine, bloc Créer, **éditeur générique** (selon `CMS_DEF`), **map pool et cycles**, règlements versionnés, publicités.
 7. **Lot G · Communauté** : réactions, médias, sponsorisé, notifications aux abonnés, e-mails, 2FA, OAuth des comptes de jeu.
@@ -132,11 +132,11 @@ Les étapes 1 à 3 du prompt sont en grande partie faites : connexion, rôles, m
 
 ## 8. Tests
 
-- **Vitest** (17 tests aujourd’hui) : à étendre au calendrier de saison paramétré, au grand livre du classement général (multi-équipes, 1v1, lobby, LAN, égalités), aux transitions de défi et aux expirations, au mercato et aux transferts, à la validation des résultats (confiance OCR, désaccord), aux cycles de cartes (tailles, activation à 00:00, veto déjà commencé), et aux remboursements LAN.
+- **Vitest** (17 tests aujourd’hui) : à étendre au calendrier de saison paramétré, au grand livre du classement général (multi-équipes, 1v1, lobby, LAN, égalités), aux transitions de défi et aux expirations, aux transferts, à la validation des résultats (confiance OCR, désaccord), aux cycles de cartes (tailles, activation à 00:00, veto déjà commencé), et aux remboursements LAN.
 - **Playwright** : inscription, création de structure, composition de roster ; défi complet (envoi, créneau, match, résultat, validation, recalcul) ; inscription LAN avec paiement mock ; publication programmée dans l’éditeur ; parcours mobile à 375 px.
 
 ## 9. Ce qu’il me faut de votre côté
 
-1. **Valider les décisions D1 à D8.**
+1. ~~Valider les décisions D1 à D8.~~ Fait.
 2. **L’export à jour du projet Claude Design** (prototype avec LAN, `CMS_DEF`, map pool ; `Passation développeurs.md`).
-3. Plus tard, au fil des lots : comptes Ably (ou Pusher), HelloAsso ou Stripe, Vercel Blob, un service d’e-mail (Resend), l’application Discord, et une demande d’accès Riot RSO.
+3. Plus tard, au fil des lots : comptes Ably, Stripe, Vercel Blob, un service d’e-mail (Resend), l’application Discord, et une demande d’accès Riot RSO.

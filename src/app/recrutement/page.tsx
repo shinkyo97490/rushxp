@@ -3,9 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { getViewer } from "@/lib/auth/viewer";
 import { GAMES, getGame } from "@/lib/data/games";
-import { isMercatoOpen } from "@/lib/rules/roster";
 import { getAds, getMyAds, getMyInvitations, getMyRequests, getTeamStructure, getTransfers } from "@/lib/team/queries";
-import { PHASES } from "@/lib/season";
 import { Empty, PageHeader, TabLinks } from "@/components/PageHeader";
 import {
   AddTeamForm,
@@ -25,9 +23,8 @@ const fmtDate = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", 
 
 export default async function RecrutementPage({ searchParams }: { searchParams: Promise<{ tab?: string; jeu?: string; type?: string }> }) {
   const sp = await searchParams;
-  const tab = sp.tab === "annonces" || sp.tab === "mercato" ? sp.tab : "equipe";
+  const tab = sp.tab === "annonces" || sp.tab === "transferts" ? sp.tab : "equipe";
   const viewer = await getViewer();
-  const mercato = isMercatoOpen(new Date());
 
   return (
     <main className="container-rx pt-7 pb-16">
@@ -36,7 +33,6 @@ export default async function RecrutementPage({ searchParams }: { searchParams: 
         actions={
           <>
             {viewer && !viewer.structure && <Link href="/structure/nouvelle" className="btn btn-secondary">+ Créer une structure</Link>}
-            <span className={`badge self-center !py-1 ${mercato ? "text-orange" : "text-silver"}`}>{mercato ? "● Mercato ouvert" : "Mercato fermé · ouverture en juin"}</span>
           </>
         }
       >
@@ -47,12 +43,12 @@ export default async function RecrutementPage({ searchParams }: { searchParams: 
         tabs={[
           { key: "equipe", label: "Mon équipe", href: "/recrutement" },
           { key: "annonces", label: "Annonces", href: "/recrutement?tab=annonces" },
-          { key: "mercato", label: "Mercato", href: "/recrutement?tab=mercato" },
+          { key: "transferts", label: "Transferts", href: "/recrutement?tab=transferts" },
         ]}
       />
       {tab === "equipe" && <TeamTab />}
       {tab === "annonces" && <AdsTab game={sp.jeu} type={sp.type} />}
-      {tab === "mercato" && <MercatoTab />}
+      {tab === "transferts" && <TransfersTab />}
     </main>
   );
 }
@@ -174,7 +170,8 @@ function RosterRules() {
     <section className="card grid gap-1.5 p-[18px] text-[13px] text-silver">
       <span className="overline">Règles de roster</span>
       <span>Agent libre : peut signer toute l’année.</span>
-      <span>Joueur sous contrat : transfert uniquement pendant le mercato (juin), avec l’accord des deux structures et du joueur, puis validation RushXP.</span>
+      <span>Pas de mercato : un joueur peut changer de structure toute l’année. En rejoignant une nouvelle structure, il quitte automatiquement l’ancienne.</span>
+      <span>Un joueur ne dispute les Playoffs que pour une seule équipe par saison.</span>
       <span>Un joueur n’est que dans une seule équipe par jeu. Jusqu’à 2 remplaçants par roster.</span>
       <span>Le capitaine lance les défis et valide les résultats.</span>
     </section>
@@ -262,27 +259,16 @@ async function AdsTab({ game, type }: { game?: string; type?: string }) {
   );
 }
 
-async function MercatoTab() {
+async function TransfersTab() {
   const transfers = await getTransfers();
-  const open = isMercatoOpen(new Date());
   const KIND = { SIGNING: ["↗", "Signature"], TRANSFER: ["⇄", "Transfert"], RELEASE: ["↘", "Libération"] } as const;
   return (
     <div className="mt-4 grid gap-4">
-      <div className={`border px-[18px] py-3.5 ${open ? "border-orange bg-active-tint" : "border-line bg-surface"}`}>
-        <div className={`font-display text-xl font-bold ${open ? "text-orange" : ""}`}>{open ? "Mercato ouvert" : "Mercato fermé"}</div>
+      <div className="border border-line bg-surface px-[18px] py-3.5">
+        <div className="font-display text-xl font-bold">Transferts libres toute l’année</div>
         <div className="text-sm text-silver">
-          {open
-            ? "Les transferts entre structures sont possibles jusqu’au 30 juin, avec l’accord des deux structures et du joueur, puis la validation RushXP."
-            : "Hors mercato, seuls les agents libres peuvent signer. Les transferts entre structures rouvrent en juin."}
+          RushXP est un circuit amateur : il n’y a pas de mercato. Un joueur rejoint une structure en acceptant une invitation ou avec son code d’invitation ; il quitte alors automatiquement sa structure précédente, dont les gestionnaires sont prévenus. Seule limite : un joueur ne dispute les Playoffs que pour une seule équipe par saison.
         </div>
-      </div>
-      <div className="grid border border-line bg-surface [grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))]">
-        {PHASES.map((p) => (
-          <div key={p.key} className={`border-r border-b border-line px-[18px] py-3.5 ${p.key === "mercato" ? "bg-active-tint" : ""}`}>
-            <div className={`text-[11px] font-bold uppercase tracking-[.1em] ${p.key === "mercato" ? "text-orange" : "text-grey"}`}>{p.when}</div>
-            <div className="font-display text-lg font-bold">{p.label}</div>
-          </div>
-        ))}
       </div>
       <section className="card">
         <div className="card-head"><span className="card-title">Transferts et signatures</span><span className="card-meta">Validés par RushXP · publics</span></div>

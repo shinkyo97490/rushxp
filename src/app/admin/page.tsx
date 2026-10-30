@@ -9,9 +9,10 @@ import { DEMO_CAMPAIGNS, DEMO_RESULTS, RESULT_STATUS } from "@/lib/data/demo-com
 import { K_DEFAULT, K_PLACEMENT, PLACEMENT_MATCHES, START_SCORE } from "@/lib/rules/elo";
 import { MAX_PENDING_OUT, PAIR_MAX_COUNTED, PAIR_WINDOW_DAYS, REMATCH_DAYS, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
 import { MAX_SUBS } from "@/lib/rules/roster";
-import { structurePoints } from "@/lib/rules/scales";
+import { LAN_BONUS, structurePoints } from "@/lib/rules/scales";
 import { DIVISION_SIZE } from "@/lib/data/repo";
 import { Empty } from "@/components/PageHeader";
+import { integrationStatus } from "@/lib/integrations";
 import { AdModeration, BroadcastForm, GameFormatForm, LiftSanction, SanctionForm, StructureReview, UserControls } from "@/components/admin/AdminClient";
 
 export const metadata: Metadata = { title: "Administration" };
@@ -151,6 +152,15 @@ async function Dashboard({ isAdmin }: { isAdmin: boolean }) {
             </div>
           ))}
           {pendingStructs.length === 0 && <Empty>Aucune structure en attente.</Empty>}
+        </section>
+        <section className="card">
+          <div className="card-head"><span className="card-title">Intégrations</span><span className="card-meta">Simulées tant qu’elles ne sont pas configurées</span></div>
+          {integrationStatus().map((i) => (
+            <div key={i.key} className="flex items-center justify-between gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm">
+              <span>{i.label}</span>
+              <span className={`badge ${i.configured ? "text-orange" : "text-silver"}`}>{i.configured ? "✓ Configurée" : "Simulée"}</span>
+            </div>
+          ))}
         </section>
         <section className="card">
           <div className="card-head"><span className="card-title">Journal d’audit récent</span></div>
@@ -379,6 +389,8 @@ function RankConfig() {
     ["Taille de division", `${DIVISION_SIZE}`],
     ["Remplaçants par roster", `${MAX_SUBS} maximum`],
     ["Barème du classement général", `${[1, 2, 3, 4, 5, 6, 7, 8].map(structurePoints).join(" / ")}, puis −4 par rang (min. 5)`],
+    ["Barème LAN", `barème du classement général + ${LAN_BONUS} points (${[1, 2, 3].map((r) => structurePoints(r) + LAN_BONUS).join(" / ")}…)`],
+    ["Pré-saison", "classe les équipes (Elo) sans compter au classement général"],
   ];
   return (
     <section className="card max-w-3xl">

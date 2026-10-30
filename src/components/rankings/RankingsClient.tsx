@@ -520,7 +520,7 @@ function Divisions({ rows, solo }: { rows: RankingRow[]; solo: boolean }) {
   return (
     <>
       <div className="mt-4 border border-line bg-surface px-4 py-3 text-[13px] text-silver">
-        Fin du Split 2 · répartition du <strong className="text-ink">30 sept. 2026</strong>. Divisions de 8 ; une division s’ouvre par tranche de 8 inscrits ({rows.length} inscrits = {nDiv} division{nDiv > 1 ? "s" : ""}). Les 2 premiers de chaque division montent, les 2 derniers descendent. Les nouveaux entrants sont placés dans la dernière division, à titre provisoire.
+        Divisions de 8, recalculées après chaque match validé ; une division s’ouvre par tranche de 8 inscrits ({rows.length} inscrits = {nDiv} division{nDiv > 1 ? "s" : ""}). Au <strong className="text-ink">31 août à 23:59</strong>, le seeding est figé : les 8 premiers de la Division 1 sont qualifiés pour les Playoffs. Les nouveaux entrants sont placés dans la dernière division, à titre provisoire, le temps de leurs 5 matchs de placement.
       </div>
       <div className="mt-3 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr))]">
         {Array.from({ length: nDiv }, (_, i) => i + 1).map((d) => {
@@ -531,16 +531,15 @@ function Divisions({ rows, solo }: { rows: RankingRow[]; solo: boolean }) {
                 <span className={`font-display text-[22px] font-extrabold ${d === 1 ? "text-yellow" : d === 2 ? "text-orange" : "text-silver"}`}>Division {d}</span>
                 <span className="text-xs text-grey">{rr.length} / 8 {solo ? "joueurs" : "équipes"}</span>
               </div>
-              {rr.map((r, i) => {
-                const up = d > 1 && i < 2 && !r.inPlacement;
-                const down = d < nDiv && i >= rr.length - 2;
+              {rr.map((r) => {
+                const playoffs = d === 1 && !r.inPlacement;
                 return (
                   <div key={r.id} className={`grid grid-cols-[34px_minmax(0,1fr)_60px_100px] items-center gap-2 border-b border-surface-2 px-4 py-2 text-sm ${r.isMe ? "bg-active-tint" : ""}`}>
                     <span className="font-display text-base font-bold text-grey">{r.rank}</span>
                     <span className={`truncate ${r.isMe ? "font-extrabold" : ""}`}>{r.name}{r.team ? <span className="text-xs text-grey"> · {r.team}</span> : null}</span>
                     <span className="text-right text-silver">{fmtScore(r.score)}</span>
-                    <span className={`text-right text-[11px] font-bold ${up ? "text-orange" : down ? "text-red" : "text-silver"}`}>
-                      {r.inPlacement ? "PROVISOIRE" : up ? "↑ PROMOTION" : down ? "↓ RELÉGATION" : ""}
+                    <span className={`text-right text-[11px] font-bold ${playoffs ? "text-yellow" : "text-silver"}`}>
+                      {r.inPlacement ? "PROVISOIRE" : playoffs ? "ZONE PLAYOFFS" : ""}
                     </span>
                   </div>
                 );
@@ -560,8 +559,8 @@ function Seeding({ rows, game }: { rows: RankingRow[]; game: GameInfo }) {
       <section className="card">
         <div className="card-head"><span className="card-title">Seedings</span></div>
         {[
-          ["Seeding officiel · fin du Split 2", "Officiel · 30 sept. 2026 · 23:59", "Tableau des Playoffs (top 8 D1)", true],
-          ["Seeding officiel · fin du Split 1", "Officiel · 31 mai 2026 · 23:59", "Répartition du Split 2", false],
+          ["Seeding officiel · fin de saison régulière", "Officiel · 31 août 2026 · 23:59", "Tableau des Playoffs (top 8 D1)", true],
+          ["Seeding · fin de pré-saison", "Indicatif · 30 avr. 2026 · 23:59", "Divisions de départ de la saison régulière", false],
         ].map(([n, d, u, on]) => (
           <div key={n as string} className={`border-b border-l-[3px] border-b-surface-2 px-[18px] py-3 ${on ? "border-l-orange bg-surface-2" : "border-l-transparent"}`}>
             <div className="text-sm font-semibold">{n}</div>
@@ -573,8 +572,8 @@ function Seeding({ rows, game }: { rows: RankingRow[]; game: GameInfo }) {
       <section className="card min-w-0 overflow-x-auto">
         <div className="card-head">
           <div className="min-w-[220px] flex-1">
-            <div className="card-title">Seeding officiel · fin du Split 2</div>
-            <div className="text-xs text-grey">Référence 30 sept. 2026 · 23:59 · {game.name} · Océan Indien</div>
+            <div className="card-title">Seeding officiel · fin de saison régulière</div>
+            <div className="text-xs text-grey">Référence 31 août 2026 · 23:59 · {game.name} · Océan Indien</div>
           </div>
           <span className="badge text-orange">Aperçu</span>
         </div>

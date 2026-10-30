@@ -4,8 +4,8 @@
  * gérés depuis l'administration (règlement versionné) dans un lot ultérieur.
  */
 
-export const RULES_VERSION = "2026.3";
-export const RULES_UPDATED = "12 oct. 2026";
+export const RULES_VERSION = "2026.4";
+export const RULES_UPDATED = "30 oct. 2026";
 
 export const RULES_GENERAL: { title: string; items: [string, string][] }[] = [
   {
@@ -20,8 +20,8 @@ export const RULES_GENERAL: { title: string; items: [string, string][] }[] = [
   {
     title: "Saison et phases",
     items: [
-      ["2.1", "La saison comprend le placement (janvier–février), le Split 1 (mars–mai), le mercato (juin), le Split 2 (juillet–septembre) et les Playoffs (octobre–novembre)."],
-      ["2.2", "Le seeding officiel est figé le 30 septembre à 23:59. Les 8 premiers de la Division 1 de chaque jeu sont qualifiés pour les Playoffs."],
+      ["2.1", "La saison comprend la pré-saison (janvier–avril), la saison régulière (mai–août) et les Playoffs (septembre–décembre). Les matchs de pré-saison comptent pour le classement RushXP Rankings, pas pour le classement général des structures."],
+      ["2.2", "Le seeding officiel est figé le 31 août à 23:59 (heure de La Réunion). Les 8 premiers de la Division 1 de chaque jeu sont qualifiés pour les Playoffs. Un joueur ne dispute les Playoffs que pour une seule équipe par saison."],
       ["2.3", "Les jeux en lobby (TFT, Warzone, Apex Legends) se jouent en rendez-vous mensuels de 6 manches."],
     ],
   },
@@ -38,7 +38,7 @@ export const RULES_GENERAL: { title: string; items: [string, string][] }[] = [
     items: [
       ["4.1", "Check-in obligatoire 30 minutes avant le match."],
       ["4.2", "Au-delà de 15 minutes de retard, l’équipe présente peut réclamer la victoire par forfait."],
-      ["4.3", "Trois forfaits dans un split entraînent l’exclusion du roster jusqu’au split suivant."],
+      ["4.3", "Trois forfaits dans une même phase (pré-saison ou saison régulière) entraînent l’exclusion du roster jusqu’à la phase suivante."],
     ],
   },
   {
@@ -60,7 +60,7 @@ export const RULES_GENERAL: { title: string; items: [string, string][] }[] = [
 ];
 
 export const RULES_GAME: Record<string, { title: string; items: [string, string][] }> = {
-  val: { title: "Valorant · format et veto", items: [["V.1", "Séries BO3, BO5 en finale des Playoffs. Pool de 7 cartes annoncé en début de split."], ["V.2", "Veto : A bannit, B bannit, A choisit, B choisit côté, B choisit, A choisit côté, carte décisive restante."], ["V.3", "Pause technique : 10 minutes maximum par équipe et par carte."]] },
+  val: { title: "Valorant · format et veto", items: [["V.1", "Séries BO3, BO5 en finale des Playoffs. Pool de 7 cartes annoncé à chaque cycle de cartes (au moins en début de pré-saison et de saison régulière)."], ["V.2", "Veto : A bannit, B bannit, A choisit, B choisit côté, B choisit, A choisit côté, carte décisive restante."], ["V.3", "Pause technique : 10 minutes maximum par équipe et par carte."]] },
   cod: { title: "Call of Duty CDL · modes et veto", items: [["C.1", "Séries BO5 : Hardpoint, Recherche & Destruction, Contrôle, Hardpoint, Recherche & Destruction."], ["C.2", "Chaque mode a son propre pool de cartes. Les bannissements se font mode par mode."], ["C.3", "Restrictions d’armes et d’atouts selon la liste CDL en vigueur."]] },
   rl: { title: "Rocket League · format", items: [["R.1", "Séries BO5, BO7 en finale. Mode Standard 3v3, terrain DFH Stadium par défaut."], ["R.2", "Le lobby est créé par l’équipe la mieux classée et communiqué dans le chat de match."], ["R.3", "Une déconnexion avant le premier but permet de relancer la manche."]] },
   fc: { title: "EA Sports FC 27 · format", items: [["F.1", "Match aller simple, mode FUT. Durée de mi-temps : 6 minutes."], ["F.2", "En cas d’égalité : prolongation puis tirs au but."], ["F.3", "Équipes FUT libres dans le respect des cartes disponibles en jeu."]] },
@@ -75,11 +75,11 @@ export const GUIDE: Record<string, { label: string; blocks: { t: string; d: stri
     label: "Joueurs & équipes",
     blocks: [
       { t: "Inscription", d: "Ouverte toute l’année. Créez votre profil, liez votre compte de jeu, choisissez le jeu et le format, acceptez le règlement et déclarez votre roster (titulaires + 2 remplaçants).", cta: ["S’inscrire", "/inscription"] },
-      { t: "Season 1 · placement (janvier → février)", d: "5 matchs de placement contre des niveaux variés, avec des gains et pertes de points accélérés. Après 2 victoires d’affilée, vous pouvez défier jusqu’à 8 rangs au-dessus." },
+      { t: "Pré-saison · placement (janvier → avril)", d: "5 matchs de placement contre des niveaux variés, avec des gains et pertes de points accélérés. Après 2 victoires d’affilée, vous pouvez défier jusqu’à 8 rangs au-dessus." },
       { t: "Défis", d: "Vous pouvez défier jusqu’à 2 rangs au-dessus et 1 en dessous. Proposez 3 créneaux, l’adversaire en choisit un sous 48 h, le match se joue sous 7 jours. Pas de revanche avant 14 jours.", cta: ["Centre des défis", "/rankings/defis"] },
       { t: "Résultats", d: "Envoyez la capture de fin de match : le score est lu automatiquement, puis l’adversaire confirme sous 24 h. Les points ne bougent qu’une fois le résultat validé." },
-      { t: "Divisions & splits", d: "Divisions de 8. Split 1 de mars à mai, mercato en juin, Split 2 de juillet à septembre. Les 2 premiers montent, les 2 derniers descendent." },
-      { t: "Playoffs & cashprize", d: "Le top 8 de la Division 1 au 30 septembre dispute les Playoffs en octobre et novembre, finale en LAN. 2 500 € de cashprize.", cta: ["Playoffs", "/playoffs"] },
+      { t: "Saison & divisions", d: "Pré-saison de janvier à avril pour se placer, saison régulière de mai à août. Divisions de 8, recalculées après chaque match validé : le top 8 au 31 août forme la Division 1 qualifiée pour les Playoffs." },
+      { t: "Playoffs & cashprize", d: "Le top 8 de la Division 1 au 31 août dispute les Playoffs de septembre à décembre, finale en LAN. 2 500 € de cashprize.", cta: ["Playoffs", "/playoffs"] },
       { t: "Fair-play", d: "Refus de défi sans motif : forfait et −40 pts. Inactivité au-delà de 14 jours (équipes) ou 7 jours (1v1) : avertissement puis pénalités. 14 jours de congé par an sans pénalité." },
     ],
   },
@@ -88,7 +88,7 @@ export const GUIDE: Record<string, { label: string; blocks: { t: string; d: stri
     blocks: [
       { t: "Suivre le classement", d: "RushXP Rankings se met à jour après chaque match validé. Filtrez par jeu, division ou recherchez votre équipe.", cta: ["Voir les Rankings", "/rankings"] },
       { t: "Regarder les matchs", d: "Le Match Center affiche le score, le veto et les liens Twitch, Kick ou YouTube de chaque rencontre.", cta: ["Matchs du jour", "/calendrier"] },
-      { t: "Les temps forts", d: "Fin février : première répartition. 31 mai et 30 septembre : montées et descentes. Octobre → novembre : Playoffs et finale LAN." },
+      { t: "Les temps forts", d: "Janvier → avril : pré-saison. 1er mai : début de la saison régulière. 31 août : seeding figé. Septembre → décembre : Playoffs et finale LAN." },
       { t: "Actualités & sondages", d: "Résultats, annonces officielles, vidéos et sondages de la communauté.", cta: ["Fil d’actualité", "/actualites"] },
     ],
   },
@@ -106,9 +106,9 @@ export const GUIDE: Record<string, { label: string; blocks: { t: string; d: stri
     blocks: [
       { t: "Faut-il attendre une saison pour s’inscrire ?", d: "Non. Les inscriptions sont ouvertes toute l’année ; vous entrez en placement avec un score provisoire." },
       { t: "Tous les matchs comptent-ils ?", d: "Oui. Chaque match joué et validé sur RushXP (défi, appariement automatique ou Playoffs) fait évoluer RushXP Rankings et donc le classement général des structures." },
-      { t: "Comment sont choisis les qualifiés des Playoffs ?", d: "Le seeding officiel du 30 septembre est figé : les 8 premiers de la Division 1 sont qualifiés, 1er contre 8e, 2e contre 7e, etc." },
+      { t: "Comment sont choisis les qualifiés des Playoffs ?", d: "Le seeding officiel du 31 août est figé : les 8 premiers de la Division 1 sont qualifiés, 1er contre 8e, 2e contre 7e, etc." },
       { t: "Que se passe-t-il si l’adversaire conteste ?", d: "Le résultat est suspendu et un arbitre tranche à partir des preuves. Aucun point n’est versé avant la décision." },
-      { t: "Puis-je changer de joueurs ?", d: "Oui, pendant le mercato de juin et dans la limite de 2 arrivées par roster en cours de split, après validation RushXP." },
+      { t: "Puis-je changer de structure ou de joueurs ?", d: "Oui, toute l’année : RushXP est un circuit amateur, il n’y a pas de mercato. Un joueur qui rejoint une nouvelle structure quitte automatiquement l’ancienne. Seule limite : un joueur ne dispute les Playoffs que pour une seule équipe par saison." },
       { t: "Qui touche le cashprize ?", d: "Les 2 500 € sont réservés au top de la Division 1 en Playoffs. La répartition est publiée dans le règlement." },
     ],
   },
@@ -132,10 +132,10 @@ export const AD_SLOTS: [string, string][] = [
 ];
 
 export const SEASON_PEAKS: [string, string, string, string][] = [
-  ["Janv. → févr.", "Season 1", "placement et inscriptions", "Moyen"],
-  ["31 mai · 30 sept.", "Fins de split", "montées et descentes", "Fort"],
-  ["Juin", "Mercato", "transferts et annonces", "Moyen"],
-  ["Oct. → nov.", "Playoffs & finale LAN", "2 500 € de cashprize", "Très fort"],
+  ["Janv. → avr.", "Pré-saison", "placement et inscriptions", "Moyen"],
+  ["Mai → août", "Saison régulière", "défis classés, course au top 8", "Fort"],
+  ["31 août", "Seeding figé", "qualifiés connus", "Fort"],
+  ["Sept. → déc.", "Playoffs & finale LAN", "2 500 € de cashprize", "Très fort"],
 ];
 
 /** Formats des rendez-vous mensuels (jeux en lobby). */

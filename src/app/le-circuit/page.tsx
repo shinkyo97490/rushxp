@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GUIDE } from "@/lib/data/content";
-import { PHASES } from "@/lib/season";
+import { getSeason } from "@/lib/season";
+import { SeasonTimeline } from "@/components/SeasonTimeline";
 import { TabLinks } from "@/components/PageHeader";
 
 export const metadata: Metadata = { title: "Le circuit" };
@@ -11,23 +12,20 @@ export default async function CircuitPage({ searchParams }: { searchParams: Prom
   const tab = t && t in GUIDE ? t : "joueurs";
   const g = GUIDE[tab];
   const faq = tab === "faq";
+  const now = new Date();
+  const season = await getSeason(now.getFullYear());
   return (
     <main className="mx-auto max-w-[1100px] px-[clamp(16px,3vw,40px)] pt-7 pb-16">
-      <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-grey">Guide RushXP · saison {new Date().getFullYear()}</div>
+      <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-grey">Guide RushXP · {season.name.toLowerCase()}</div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-display mt-1 text-[clamp(44px,7vw,64px)] font-extrabold leading-none">Le circuit RushXP</h1>
         <Link href="/reglement" className="text-sm font-semibold">Lire le règlement complet →</Link>
       </div>
       <p className="mt-3 max-w-[760px] text-[16px] text-silver">
-        Un classement permanent par jeu, des défis toute l’année, deux splits en divisions de 8 et des Playoffs pour le top 8 de la Division 1, avec 2 500 € de cashprize.
+        Un classement permanent par jeu, des défis toute l’année en divisions de 8, une pré-saison pour se placer, une saison régulière qui compte, puis des Playoffs pour le top 8 de la Division 1, avec 2 500 € de cashprize.
       </p>
-      <div className="mt-5 grid border border-line bg-surface [grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))]">
-        {PHASES.map((p) => (
-          <div key={p.key} className="border-r border-b border-line px-4 py-3">
-            <div className="text-[11px] font-bold uppercase tracking-[.1em] text-orange">{p.when}</div>
-            <div className="font-display text-lg font-bold">{p.label}</div>
-          </div>
-        ))}
+      <div className="mt-5">
+        <SeasonTimeline phases={season.phases} now={now} compact />
       </div>
       <TabLinks active={tab} tabs={Object.entries(GUIDE).map(([k, v]) => ({ key: k, label: v.label, href: `/le-circuit?tab=${k}` }))} />
       <div className="mt-4 grid gap-3">

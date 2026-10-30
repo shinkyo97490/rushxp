@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getViewer, type Viewer } from "@/lib/auth/viewer";
-import { joinBlock, rosterSlotError } from "@/lib/rules/roster";
+import { rosterSlotError, transferKind } from "@/lib/rules/roster";
 import { GAMES } from "@/lib/data/games";
 import { pseudoSchema, toFieldErrors, type FieldErrors } from "@/lib/validation";
 
@@ -44,6 +44,24 @@ async function rosterCounts(rosterId: string) {
 
 async function activeContract(userId: string) {
   return db.structureMember.findFirst({ where: { userId, leftAt: null } });
+}
+
+/**
+ * Départ d'une structure (transfert ou libération) : fin du contrat, sortie des rosters
+ * de cette structure, perte du capitanat, notification des gestionnaires.
+ */
+async function leaveStructure(userId: string, structureId: string, notice: string) {
+  const now = new Date();
+  const [rosters, staff] = await Promise.all([
+    db.roster.findMany({ where: { structureId }, select: { id: true } }),
+    db.structureStaff.findMany({ where: { structureId }, select: { userId: true } }),
+  ]);
+  await db.$transaction([
+    db.structureMember.updateMany({ where: { structureId, userId, leftAt: null }, data: { leftAt: now } }),
+    db.rosterMember.updateMany({ where: { userId, leftAt: null, rosterId: { in: rosters.map((r) => r.id) } }, data: { leftAt: now } }),
+    db.roster.updateMany({ where: { structureId, captainId: userId }, data: { captainId: null } }),
+    db.notification.createMany({ data: staff.map((m) => ({ userId: m.userId, category: "recrutement", text: notice, link: "/recrutement?tab=transferts" })) }),
+  ]);
 }
 
 /** Ajoute un joueur sous contrat à un roster en vérifiant : une équipe par jeu, places disponibles. */
@@ -122,12 +140,14 @@ export async function respondInvitationAction(input: { id: string; accept: boole
   }
 
   const contract = await activeContract(inv.userId);
-  const block = joinBlock(contract?.structureId ?? null, inv.structureId, new Date());
-  if (block) return fail(block);
-  if (!contract) {
+  const kind = transferKind(contract?.structureId ?? null, inv.structureId);
+  if (kind === "TRANSFER") await leaveStructure(inv.userId, contract!.structureId, `${inv.user.pseudo} a rejoint ${inv.structure.name}.`);
+  if (kind !== "SAME") {
     await db.$transaction([
       db.structureMember.create({ data: { structureId: inv.structureId, userId: inv.userId } }),
-      db.transfer.create({ data: { userId: inv.userId, toStructureId: inv.structureId, game: "*", kind: "SIGNING", status: "APPROVED", window: "agent-libre" } }),
+      db.transfer.create({
+        data: { userId: inv.userId, fromStructureId: contract?.structureId ?? null, toStructureId: inv.structureId, game: "*", kind, status: "APPROVED", window: "libre" },
+      }),
     ]);
   }
   let note: string | undefined;
@@ -273,9 +293,7 @@ export async function requestJoinAction(code: string): Promise<TeamResult> {
   const s = await db.structure.findUnique({ where: { inviteCode: c.data }, select: { id: true, name: true, staff: { select: { userId: true } } } });
   if (!s) return fail("Aucune structure ne correspond à ce code.", "code");
   const contract = await activeContract(v.id);
-  const block = joinBlock(contract?.structureId ?? null, s.id, new Date());
   if (contract?.structureId === s.id) return fail("Vous êtes déjà dans cette structure.", "code");
-  if (block) return fail(block, "code");
   await db.$transaction([
     db.invitation.upsert({
       where: { structureId_userId: { structureId: s.id, userId: v.id } },

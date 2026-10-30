@@ -6,6 +6,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, GameKind } from "../src/generated/prisma/client";
 import { GAMES } from "../src/lib/data/games";
 import { LOBBY_SCALES } from "../src/lib/rules/scales";
+import { defaultSeason } from "../src/lib/rules/season";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL! }),
@@ -27,6 +28,18 @@ async function main() {
     await db.game.upsert({ where: { id: g.id }, create: { id: g.id, ...data }, update: {} });
   }
   console.log(`Jeux : ${GAMES.length} vérifiés.`);
+
+  // Saisons : créées avec le calendrier validé si elles n'existent pas (jamais écrasées, l'admin peut les modifier).
+  const year = new Date().getFullYear();
+  for (const y of [year, year + 1]) {
+    const exists = await db.season.findUnique({ where: { year: y } });
+    if (exists) continue;
+    const def = defaultSeason(y);
+    await db.season.create({
+      data: { year: y, name: def.name, seedingAt: def.seedingAt, phases: { create: def.phases } },
+    });
+    console.log(`Saison ${y} créée.`);
+  }
 }
 
 main()

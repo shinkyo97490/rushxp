@@ -158,10 +158,10 @@ export function playoffBracket(game: ChallengeGameId) {
   });
   const w = (m: BracketMatch) => m.sides.find((s) => s.win) ?? null;
   const sf: BracketMatch[] = [
-    { when: "Sam. 8 nov. · 18:00", state: "Programmé", sides: [w(qf[0]) ?? { seed: null, name: "Vainqueur QF1" }, w(qf[1]) ?? { seed: null, name: "Vainqueur QF2" }] },
-    { when: "Sam. 8 nov. · 20:30", state: "En attente", sides: [{ seed: null, name: "Vainqueur QF3" }, { seed: null, name: "Vainqueur QF4" }] },
+    { when: "Octobre · date à fixer", state: "Programmé", sides: [w(qf[0]) ?? { seed: null, name: "Vainqueur QF1" }, w(qf[1]) ?? { seed: null, name: "Vainqueur QF2" }] },
+    { when: "Octobre · date à fixer", state: "En attente", sides: [{ seed: null, name: "Vainqueur QF3" }, { seed: null, name: "Vainqueur QF4" }] },
   ].map((m) => ({ ...m, sides: m.sides.map((s) => ({ seed: s.seed, name: s.name })) as [BracketSide, BracketSide] }));
-  const fi: BracketMatch[] = [{ when: "Sam. 29 nov. · 20:00", state: "En attente", sides: [{ seed: null, name: "Vainqueur DF1" }, { seed: null, name: "Vainqueur DF2" }] }];
+  const fi: BracketMatch[] = [{ when: "Finale LAN · nov. → déc.", state: "En attente", sides: [{ seed: null, name: "Vainqueur DF1" }, { seed: null, name: "Vainqueur DF2" }] }];
   const eliminated = new Set(qf.flatMap((m) => m.sides.filter((s) => s.win === false).map((s) => s.seed)));
   const inSemi = new Set(qf.flatMap((m) => m.sides.filter((s) => s.win).map((s) => s.seed)));
   const seeds = top.map((_, i) => ({ seed: i + 1, name: nm(i), state: eliminated.has(i + 1) ? "Éliminé" : inSemi.has(i + 1) ? "En demi-finale" : "En lice" }));
@@ -186,8 +186,10 @@ export function mvpRows(game: string) {
 
 // ─── RDV mensuels ────────────────────────────────────────────────
 
-export const EVENT_MONTHS = ["Mars", "Avril", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov."];
-export const EVENT_DONE = new Set([0, 1, 2, 4, 5, 6, 7]);
+export const EVENT_MONTHS = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août"];
+export const EVENT_DONE = new Set([0, 1, 2, 3, 4, 5, 6, 7]);
+/** Les 4 premiers mois sont la pré-saison : leurs RDV ne comptent pas au classement général. */
+export const PRESEASON_MONTHS = 4;
 
 export function eventStandings(game: "tft" | "wz" | "apex", month: number) {
   const scale = LOBBY_SCALES[game];

@@ -4,6 +4,7 @@ import { DemoBar } from "@/components/DemoBar";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getViewer } from "@/lib/auth/viewer";
+import { ToastProvider } from "@/components/ui/interactive";
 import "./globals.css";
 
 const saira = Saira_Condensed({ variable: "--font-saira", subsets: ["latin"], weight: ["500", "600", "700", "800"] });
@@ -21,10 +22,12 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="fr" className={`${saira.variable} ${barlow.variable} ${jetbrains.variable}`}>
       <body className="min-h-screen flex flex-col">
-        <DemoBar />
-        <Header viewer={viewer} />
-        <div className="flex-1">{children}</div>
-        <Footer />
+        <ToastProvider>
+          <DemoBar />
+          <Header viewer={viewer} />
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </ToastProvider>
       </body>
     </html>
   );

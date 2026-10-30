@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { GAMES } from "@/lib/data/games";
-import { STRUCTURES } from "@/lib/data/demo";
 import { getStructureStandings } from "@/lib/data/repo";
 import { rankLabel } from "@/lib/rules/standings";
 import { getViewer } from "@/lib/auth/viewer";
 import { isStaff } from "@/lib/session-shared";
-import { PHASES, currentPhase, phaseState } from "@/lib/season";
+import { getSeasonContext } from "@/lib/season";
+import { db } from "@/lib/db";
+import { SeasonTimeline } from "@/components/SeasonTimeline";
 
 const PARTNERS = ["partner-orange.png", "partner-mcdo.png", "partner-easygym.png", "partner-ocorner.png", "partner-saintpaul.png"];
 
@@ -14,7 +15,9 @@ export default async function Home() {
   const viewer = await getViewer();
   const role = viewer?.role ?? "visiteur";
   const now = new Date();
-  const phase = currentPhase(now);
+  const { season, phase, next } = await getSeasonContext(now);
+  const structures = await db.structure.count({ where: { status: "VERIFIED" } }).catch(() => 0);
+  const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "Indian/Reunion" });
   const top5 = getStructureStandings().slice(0, 5);
   const member = role !== "visiteur";
 
@@ -28,7 +31,7 @@ export default async function Home() {
           <div>
             <div className="mb-5 flex items-center gap-2.5">
               <span className="h-2 w-2 animate-rxpulse bg-orange" />
-              <span className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">Saison {now.getFullYear()} · en cours</span>
+              <span className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">{season.name} · {phase?.label ?? "intersaison"}</span>
             </div>
             <h1 className="font-display text-[clamp(52px,8vw,86px)] font-extrabold leading-[.9] tracking-[-.01em]">
               Chaque match
@@ -52,14 +55,14 @@ export default async function Home() {
             <div className="w-full max-w-[380px] border border-line bg-[rgba(20,20,20,.92)] backdrop-blur-sm">
               <div className="overline border-b border-line px-[18px] py-3 !tracking-[.12em]">Saison active</div>
               <div className="grid grid-cols-3 gap-3 px-[18px] py-3.5">
-                <div><div className="text-xs text-grey">Phase</div><div className="font-display text-xl font-bold text-orange">{phase?.label.split(" ·")[0] ?? "Intersaison"}</div></div>
+                <div><div className="text-xs text-grey">Phase</div><div className="font-display text-xl font-bold text-orange">{phase?.label ?? "Intersaison"}</div></div>
                 <div><div className="text-xs text-grey">Jeux</div><div className="font-display text-xl font-bold">{GAMES.length}</div></div>
-                <div><div className="text-xs text-grey">Structures</div><div className="font-display text-xl font-bold">{STRUCTURES.length}</div></div>
+                <div><div className="text-xs text-grey">Structures</div><div className="font-display text-xl font-bold">{structures}</div></div>
               </div>
               <div className="border-t border-line px-[18px] py-3">
-                <div className="text-xs text-grey">Prochaine échéance</div>
-                <div className="mt-0.5 text-[15px] font-semibold">Playoffs · demi-finales</div>
-                <div className="text-[13px] text-orange">Sam. 1 nov. {now.getFullYear()}</div>
+                <div className="text-xs text-grey">Prochaine étape</div>
+                <div className="mt-0.5 text-[15px] font-semibold">{next ? next.label : "Calendrier à venir"}</div>
+                {next && <div className="text-[13px] text-orange first-letter:uppercase">{dayFmt.format(next.startsAt)}</div>}
               </div>
             </div>
           </div>
@@ -124,23 +127,10 @@ export default async function Home() {
 
       <section className="container-rx pt-10" aria-labelledby="saison">
         <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
-          <h2 id="saison" className="font-display text-[34px] font-extrabold">Saison {now.getFullYear()} · toute l’année</h2>
+          <h2 id="saison" className="font-display text-[34px] font-extrabold">{season.name} · toute l’année</h2>
           <span className="text-[13px] text-grey">Un seul calendrier pour tous les jeux · les défis restent ouverts toute l’année</span>
         </div>
-        <div className="grid border border-line bg-surface [grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))]">
-          {PHASES.map((p) => {
-            const st = phaseState(p, now);
-            return (
-              <div key={p.key} className={`border-r border-b border-line px-[18px] py-4 ${st === "current" ? "bg-active-tint border-t-2 !border-t-orange" : ""}`}>
-                <div className={`text-[11px] font-bold uppercase tracking-[.1em] ${st === "current" ? "text-orange" : "text-grey"}`}>
-                  {st === "done" ? "✓ Terminé" : st === "current" ? "● En cours" : "À venir"} · {p.when}
-                </div>
-                <div className="font-display mt-1 text-xl font-bold">{p.label}</div>
-                <div className="mt-1 text-[13px] leading-snug text-silver">{p.text}</div>
-              </div>
-            );
-          })}
-        </div>
+        <SeasonTimeline phases={season.phases} now={now} />
       </section>
 
       <section className="container-rx pt-10" aria-labelledby="jeux">

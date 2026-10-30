@@ -30,7 +30,7 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
   const g = CHALLENGE_GAMES.find((x) => x.id === jeu) ?? CHALLENGE_GAMES[0];
   const { qf, sf, fi, seeds } = playoffBracket(g.id as ChallengeGameId);
   const year = new Date().getFullYear();
-  const rounds: [string, string, BracketMatch[]][] = [["Quarts", "18 → 30 oct.", qf], ["Demi-finales", "8 nov.", sf], ["Finale", "29 nov.", fi]];
+  const rounds: [string, string, BracketMatch[]][] = [["Quarts", "septembre", qf], ["Demi-finales", "octobre", sf], ["Finale", "nov. → déc.", fi]];
 
   return (
     <main className="pb-16">
@@ -39,9 +39,9 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#000_15%,rgba(0,0,0,.5))]" />
         <div className="container-rx relative flex flex-wrap items-end justify-between gap-6 py-12">
           <div className="max-w-[640px]">
-            <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">Saison {year} · octobre → novembre</div>
+            <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">Saison {year} · septembre → décembre</div>
             <h1 className="font-display mt-1 text-[clamp(56px,9vw,86px)] font-extrabold leading-[.9]">Playoffs</h1>
-            <p className="mt-3 text-[16px] text-silver">Les 8 premiers de la Division 1 au seeding officiel du 30 septembre se qualifient. Élimination directe : 1er contre 8e, 2e contre 7e, etc.</p>
+            <p className="mt-3 text-[16px] text-silver">Les 8 premiers de la Division 1 au seeding officiel du 31 août se qualifient. Élimination directe : 1er contre 8e, 2e contre 7e, etc.</p>
           </div>
           <div className="border border-yellow bg-black/70 px-6 py-4 text-right">
             <div className="overline !text-yellow">Cashprize</div>
@@ -95,7 +95,7 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
 
         <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))]">
           <section className="card">
-            <div className="card-head"><span className="card-title">Qualifiés · seeding du 30 sept.</span></div>
+            <div className="card-head"><span className="card-title">Qualifiés · seeding du 31 août</span></div>
             {seeds.map((s) => (
               <div key={s.seed} className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-surface-2 px-[18px] py-2 text-sm">
                 <span className={`font-display text-lg font-extrabold ${s.seed === 1 ? "text-yellow" : ""}`}>{s.seed}</span>
@@ -106,7 +106,7 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
           </section>
           <section className="card">
             <div className="card-head"><span className="card-title">Dates clés</span></div>
-            {[["30 sept.", "Seeding officiel figé, qualifiés connus", "text-silver"], ["18 → 30 oct.", "Quarts de finale", "text-orange"], ["8 nov.", "Demi-finales", "text-ink"], ["29 nov.", "Finales de tous les jeux", "text-yellow"], ["Déc.", "Versement du cashprize", "text-silver"]].map(([w, t, c]) => (
+            {[["31 août", "Seeding officiel figé, qualifiés connus", "text-silver"], ["Sept.", "Quarts de finale", "text-orange"], ["Oct.", "Demi-finales", "text-ink"], ["Nov. → déc.", "Finales de tous les jeux (LAN)", "text-yellow"], ["Déc.", "Versement du cashprize", "text-silver"]].map(([w, t, c]) => (
               <div key={w} className="grid grid-cols-[110px_minmax(0,1fr)] gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm">
                 <span className={`font-bold ${c}`}>{w}</span><span>{t}</span>
               </div>

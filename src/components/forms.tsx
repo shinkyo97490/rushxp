@@ -3,25 +3,32 @@
 import { useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 const inputCls =
-  "h-11 w-full min-w-0 border border-line bg-bg px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-orange aria-[invalid=true]:border-red";
+  "h-11 w-full min-w-0 border border-line bg-bg px-3 text-sm text-ink outline-none transition-colors duration-150 focus:border-orange aria-[invalid=true]:border-red data-[state=success]:border-orange data-[state=warning]:border-yellow disabled:cursor-not-allowed disabled:opacity-45";
 
 interface FieldProps {
   label: ReactNode;
   error?: string;
   hint?: string;
-  children: (p: { id: string; "aria-invalid": boolean; "aria-describedby"?: string }) => ReactNode;
+  /** Validation positive ou avertissement (l'erreur reste prioritaire). */
+  success?: string;
+  warning?: string;
+  children: (p: { id: string; "aria-invalid": boolean; "aria-describedby"?: string; "data-state"?: "success" | "warning" }) => ReactNode;
 }
 
 /** Libellé en overline, champ, puis message d'erreur rouge sous le champ (README · Formulaires). */
-export function Field({ label, error, hint, children }: FieldProps) {
+export function Field({ label, error, hint, success, warning, children }: FieldProps) {
   const id = useId();
-  const msg = error ? `${id}-err` : hint ? `${id}-hint` : undefined;
+  const msg = error ? `${id}-err` : warning || success || hint ? `${id}-hint` : undefined;
   return (
     <div className="grid gap-1.5">
       <label htmlFor={id} className="overline">{label}</label>
-      {children({ id, "aria-invalid": !!error, "aria-describedby": msg })}
+      {children({ id, "aria-invalid": !!error, "aria-describedby": msg, "data-state": error ? undefined : warning ? "warning" : success ? "success" : undefined })}
       {error ? (
         <span id={msg} className="text-[13px] text-red">{error}</span>
+      ) : warning ? (
+        <span id={msg} className="text-[13px] text-yellow">▲ {warning}</span>
+      ) : success ? (
+        <span id={msg} className="text-[13px] text-orange">✓ {success}</span>
       ) : hint ? (
         <span id={msg} className="text-xs text-grey">{hint}</span>
       ) : null}

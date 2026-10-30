@@ -763,3 +763,64 @@ model PartnerLead {
   handledAt DateTime?
   createdAt DateTime  @default(now())
 }
+
+// ─── Saison (paramétrable) ───────────────────────────────────────
+
+enum PhaseKind {
+  PRESEASON
+  REGULAR
+  PLAYOFFS
+  BREAK
+}
+
+/// Une saison par année. `seedingAt` : instant où le classement est figé pour les Playoffs.
+model Season {
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  name      String
+  seedingAt DateTime
+  createdAt DateTime @default(now())
+
+  phases SeasonPhase[]
+}
+
+model SeasonPhase {
+  id               String    @id @default(cuid())
+  seasonId         String
+  kind             PhaseKind
+  label            String
+  description      String?
+  startsAt         DateTime
+  endsAt           DateTime
+  countsForGeneral Boolean   @default(true) // la pré-saison classe mais ne compte pas au général
+  monthlyEvents    Boolean   @default(true) // RDV mensuels pendant cette phase
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+
+  @@index([seasonId, startsAt])
+}
+
+// ─── Tâches programmées ──────────────────────────────────────────
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// File de tâches (relances, expirations, activations à date, OCR…), traitée par /api/cron/jobs.
+model Job {
+  id         String    @id @default(cuid())
+  kind       String
+  runAt      DateTime
+  payload    Json      @default("{}")
+  dedupeKey  String?   @unique // évite de programmer deux fois la même tâche
+  status     JobStatus @default(PENDING)
+  attempts   Int       @default(0)
+  lastError  String?
+  createdAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([status, runAt])
+}
