@@ -49,7 +49,6 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
   const res = shown ? await eventResults(shown.id) : null;
   const view = sp.vue && /^[0-5]$/.test(sp.vue) ? Number(sp.vue) : -1;
   const standing = res?.standing ?? [];
-  const counts = (d: Date) => season.phases.some((p) => p.countsForGeneral && d >= p.startsAt && d <= p.endsAt);
   const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: "Indian/Reunion" });
   const shownLabel = shown ? new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "Indian/Reunion" }).format(shown.date) : "";
   const q = (o: Record<string, string | number | undefined>) => {
@@ -129,14 +128,12 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
 
       <nav className="mt-5 flex overflow-x-auto border border-line bg-surface" aria-label="Mois">
         {events.map((e) => {
-          const pre = !counts(e.date);
           const done = e.status === "DONE";
           const cls = `min-w-[96px] flex-1 border-r border-b-2 border-r-line px-3 py-2 text-center text-ink hover:text-ink ${e.id === shown?.id ? "border-b-orange bg-surface-2" : "border-b-transparent"}`;
           return (
             <Link key={e.id} href={`/rdv?jeu=${game}&mois=${e.month}`} className={cls}>
               <div className="font-display text-base font-bold first-letter:uppercase">{monthFmt.format(e.date)}</div>
               <div className="text-[11px] text-silver">{done ? "✓ Terminé" : e.status === "LIVE" ? "● En cours" : e.status === "OPEN" ? "Inscriptions" : ""}</div>
-              <div className={`text-[10px] font-bold uppercase tracking-[.06em] ${pre ? "text-grey" : "text-orange"}`}>{pre ? "Pré-saison" : "Saison"}</div>
             </Link>
           );
         })}
@@ -145,7 +142,7 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
 
       <section className="card mt-4">
         <div className="card-head">
-          <span className="card-title first-letter:uppercase">Résultats{shown ? ` · ${shownLabel}` : ""}{shown && !counts(shown.date) ? " · pré-saison, hors classement général" : ""}{shown?.status === "LIVE" ? " · provisoire" : ""}</span>
+          <span className="card-title first-letter:uppercase">Résultats{shown ? ` · ${shownLabel}` : ""}{shown?.status === "LIVE" ? " · provisoire" : ""}</span>
           <span className="flex flex-wrap gap-1">
             <Link href={q({ vue: undefined })} className={`btn btn-sm !min-h-8 !px-2.5 ${view < 0 ? "btn-secondary" : "btn-tertiary"}`}>Classement</Link>
             {[0, 1, 2, 3, 4, 5].filter((r) => res?.publishedRounds.includes(r + 1)).map((r) => <Link key={r} href={q({ vue: r })} className={`btn btn-sm !min-h-8 !px-2.5 ${view === r ? "btn-secondary" : "btn-tertiary"}`}>M{r + 1}</Link>)}

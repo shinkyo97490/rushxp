@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SYSTEM_STATES } from "@/lib/data/content";
+import { Logo } from "@/components/Logo";
 
 type Params = { params: Promise<{ code: string }> };
 
@@ -26,7 +26,7 @@ export default async function EtatPage({ params }: Params) {
   return (
     <main className="hero-pattern grid min-h-[70vh] place-items-center px-4 py-16 text-center">
       <div className="grid max-w-[560px] justify-items-center gap-3">
-        <Image src="/assets/rushxp-logo.png" alt="RushXP" width={110} height={110} />
+        <Logo size={34} />
         <span className={`font-display text-[72px] font-extrabold leading-none ${TONE[s.tone]}`}>{s.code}</span>
         <h1 className="font-display text-[40px] font-extrabold leading-none">{s.title}</h1>
         <p className="text-[15px] text-silver">{s.text}</p>

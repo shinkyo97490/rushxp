@@ -4,6 +4,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { AdSlot, Alert, Badge, Button, Card, EmptyState, ErrorState, LinkButton, PostCard, ProgressSteps, Skeleton, Table } from "@/components/ui";
 import { PageHeader } from "@/components/PageHeader";
 import { ChatDemo, InteractiveShowcase } from "./Showcase";
+import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = { title: "Bibliothèque de composants" };
 
@@ -101,7 +102,7 @@ export default async function UiShowcase() {
 
       <Section title="Publications">
         <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))]">
-          <PostCard author="RushXP" official logo="/assets/rushxp-logo-sm.png" date="30 oct." kind="Annonce" title="Les Playoffs démarrent" body="Huit équipes par jeu, élimination directe." pinned />
+          <PostCard author="RushXP" official logo="/assets/rushxp-mark.png" date="30 oct." kind="Annonce" title="Les Playoffs démarrent" body="Huit équipes par jeu, élimination directe." pinned />
           <PostCard author="McDonald’s" sponsored logo="/assets/partner-mcdo.png" date="30 oct." kind="Partenaire" title="Soirée de match ? McDelivery." image="/assets/campaign-mcdelivery.png" />
         </div>
       </Section>

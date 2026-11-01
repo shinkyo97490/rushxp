@@ -20,9 +20,9 @@ export const RULES_GENERAL: { title: string; items: [string, string][] }[] = [
   {
     title: "Saison et phases",
     items: [
-      ["2.1", "La saison comprend la pré-saison (janvier–avril), la saison régulière (mai–août) et les Playoffs (septembre–décembre). Les matchs de pré-saison comptent pour le classement RushXP Rankings, pas pour le classement général des structures."],
+      ["2.1", "La saison comprend la pré-saison (janvier–avril), la saison régulière (mai–août) et les Playoffs (septembre–décembre). Les matchs de pré-saison comptent pour le classement RushXP Rankings, pas pour le classement général des structures. La pré-saison ne concerne que les RushXP Rankings : les rendez-vous mensuels forment une seule saison et tous comptent au classement général."],
       ["2.2", "Le seeding officiel est figé le 31 août à 23:59 (heure de La Réunion). Les 8 premiers de la Division 1 de chaque jeu sont qualifiés pour les Playoffs. Un joueur ne dispute les Playoffs que pour une seule équipe par saison."],
-      ["2.3", "Les jeux en lobby (TFT, Warzone, Apex Legends) se jouent en rendez-vous mensuels de 6 manches."],
+      ["2.3", "Les jeux en lobby (TFT, Warzone, Apex Legends) se jouent en rendez-vous mensuels de 6 manches, sans pré-saison : chaque rendez-vous compte au classement général."],
     ],
   },
   {

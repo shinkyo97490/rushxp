@@ -162,6 +162,10 @@ body {
   }
   .tab:hover { color: var(--color-ink); }
   .tab[aria-current="page"] { color: var(--color-ink); border-bottom-color: var(--color-orange); }
+  @media (max-width: 639px) {
+    .tab { flex: none; height: 44px; padding: 0 12px; font-size: 15px; }
+    .field { height: 44px; font-size: 16px; } /* 16 px : pas de zoom automatique sur iOS */
+  }
 
   .field {
     height: 38px;

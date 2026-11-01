@@ -8,6 +8,7 @@ import { upcomingItems } from "@/lib/matches/queries";
 import { serveAd } from "@/lib/site/ads";
 import { Empty } from "@/components/PageHeader";
 import { Poll, PostActions, type CommentView } from "@/components/feed/FeedClient";
+import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = { title: "Actualités" };
 
@@ -98,7 +99,7 @@ export default async function ActualitesPage({ searchParams }: { searchParams: P
                 {p.pinned && <div className="border-b border-line bg-active-tint px-[18px] py-1.5 text-[11px] font-bold tracking-[.08em] text-orange">▲ ÉPINGLÉ · {KIND_LABEL[p.kind].toUpperCase()}</div>}
                 <div className="flex items-center gap-3 px-[18px] pt-3.5">
                   {p.official ? (
-                    <Image src="/assets/rushxp-logo-sm.png" alt="" width={36} height={36} />
+                    <span className="grid h-9 w-9 place-items-center"><Logo mark size={14} /></span>
                   ) : (
                     <span className="clip-corner-sm grid h-9 w-9 place-items-center bg-surface-2 font-mono text-[10px]">{s?.tag}</span>
                   )}

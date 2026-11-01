@@ -104,7 +104,7 @@ export async function saveRoundAction(input: { eventId: string; round: number; r
   return { ok: true, message: `Manche ${input.round} ${input.publish ? "publiée" : "enregistrée (brouillon)"} · ${rows.length} résultat(s).` };
 }
 
-/** Clôture : le classement du mois devient définitif et compte au classement général (hors pré-saison). */
+/** Clôture : le classement du mois devient définitif et compte au classement général (pas de pré-saison pour les RDV). */
 export async function closeEventAction(eventId: string): Promise<EventResult> {
   const v = await getViewer();
   if (!v || v.role !== "admin") return fail("Réservé aux administrateurs.");

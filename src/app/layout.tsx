@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
-import { Barlow, JetBrains_Mono, Saira_Condensed } from "next/font/google";
+import type { Metadata, Viewport } from "next";
+import { Barlow, JetBrains_Mono, Montserrat, Saira_Condensed } from "next/font/google";
 import { DemoBar } from "@/components/DemoBar";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -13,12 +13,15 @@ import "./globals.css";
 
 const saira = Saira_Condensed({ variable: "--font-saira", subsets: ["latin"], weight: ["500", "600", "700", "800"] });
 const barlow = Barlow({ variable: "--font-barlow", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const montserrat = Montserrat({ variable: "--font-logo", subsets: ["latin"], weight: ["800"] });
 const jetbrains = JetBrains_Mono({ variable: "--font-jetbrains", subsets: ["latin"], weight: ["400", "500"] });
+
+export const viewport: Viewport = { viewportFit: "cover", themeColor: "#0a0a0a" };
 
 export const metadata: Metadata = {
   title: { default: "RushXP · Esports à La Réunion", template: "%s · RushXP" },
   description: "Classement permanent multi-jeux, défis classés, rendez-vous mensuels et Playoffs à La Réunion.",
-  icons: { icon: "/assets/rushxp-logo-sm.png" },
+  icons: { icon: "/assets/rushxp-mark.png", apple: "/assets/rushxp-mark.png" },
 };
 
 /** Pages accessibles pendant la maintenance (connexion des administrateurs). */
@@ -30,8 +33,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const path = (await headers()).get("x-pathname") ?? "/";
   const blocked = maintenance.on && viewer?.role !== "admin" && !MAINTENANCE_OPEN.some((p) => path.startsWith(p));
   return (
-    <html lang="fr" className={`${saira.variable} ${barlow.variable} ${jetbrains.variable}`}>
-      <body className="min-h-screen flex flex-col">
+    <html lang="fr" className={`${saira.variable} ${barlow.variable} ${jetbrains.variable} ${montserrat.variable}`}>
+      <body className="min-h-screen flex flex-col pb-[calc(64px+env(safe-area-inset-bottom))] lg:pb-0">
         <ToastProvider>
           <DemoBar />
           <Header viewer={viewer} received={viewer ? await pendingReceivedCount(viewer).catch(() => 0) : 0} />

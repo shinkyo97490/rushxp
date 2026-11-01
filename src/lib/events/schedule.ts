@@ -1,4 +1,4 @@
-/** Dates des rendez-vous mensuels : un samedi par mois et par jeu, pendant les phases qui autorisent les RDV (pré-saison et saison régulière par défaut). */
+/** Dates des rendez-vous mensuels : un samedi par mois et par jeu, pendant les phases qui autorisent les RDV (une seule saison de janvier à août par défaut, sans pré-saison pour les RDV). */
 
 import { defaultSeason, monthlyEventsAllowed } from "@/lib/rules/season";
 

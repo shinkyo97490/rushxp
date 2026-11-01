@@ -18,16 +18,13 @@ export const getGeneralStandings = cache(async () => {
     for (const r of await rankingRows(g.id)) if (r.structureId) rosters.push({ game: g.id, rank: r.rank, structureId: r.structureId, inPlacement: r.inPlacement });
   }
 
-  // RDV mensuels : cumul des points sur les mois qui comptent (hors pré-saison), par structure.
-  const counted = season.phases.filter((p) => p.countsForGeneral);
+  // RDV mensuels : pas de pré-saison, tous les RDV de la saison comptent. Cumul des points par structure.
   const results = await db.eventResult.findMany({
     where: { round: { event: { date: { gte: new Date(`${season.year}-01-01T00:00:00+04:00`), lt: new Date(`${season.year + 1}-01-01T00:00:00+04:00`) } } } },
     include: { entry: { select: { entityId: true, event: { select: { game: true, date: true } } } } },
   });
   const perEntity = new Map<string, { game: string; entityId: string; points: number }>();
   for (const r of results) {
-    const d = r.entry.event.date;
-    if (!counted.some((p) => d >= p.startsAt && d <= p.endsAt)) continue;
     const k = `${r.entry.event.game}:${r.entry.entityId}`;
     const cur = perEntity.get(k) ?? { game: r.entry.event.game, entityId: r.entry.entityId, points: 0 };
     cur.points += r.points;

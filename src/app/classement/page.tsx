@@ -26,7 +26,7 @@ export default async function ClassementPage({ searchParams }: { searchParams: P
         Seule l’équipe la mieux classée d’une structure compte. En 1v1, c’est le meilleur joueur. Pour les jeux en lobby, on prend le rang de la structure au cumul des RDV mensuels. Les LAN ajoutent le barème LAN (Rankings + 50) par jeu.
       </p>
       {indicative && (
-        <div className="mt-3 max-w-3xl border border-yellow px-4 py-2.5 text-[13px] text-yellow">{phaseLabel || "Pré-saison"} : classement indicatif, les points ne comptent pas encore au classement général.</div>
+        <div className="mt-3 max-w-3xl border border-yellow px-4 py-2.5 text-[13px] text-yellow">{phaseLabel || "Pré-saison"} : les défis RushXP Rankings sont indicatifs et ne comptent pas encore. Les RDV mensuels, eux, comptent dès janvier (pas de pré-saison).</div>
       )}
 
       <div className="card mt-5 overflow-x-auto">

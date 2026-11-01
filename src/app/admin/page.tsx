@@ -29,6 +29,7 @@ import { CDL_MODES, type CdlMode, type VetoPool } from "@/lib/rules/veto";
 import { eventResults } from "@/lib/events/results";
 import { tftLobbies } from "@/lib/rules/scales";
 import { AdModeration, BroadcastForm, GameFormatForm, LiftSanction, SanctionForm, StructureReview, UserControls } from "@/components/admin/AdminClient";
+import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = { title: "Administration" };
 
@@ -58,7 +59,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     <main className="grid min-h-[calc(100vh-100px)] [grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))] lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="border-r border-line bg-black">
         <div className="flex items-center gap-2.5 border-b border-line px-4 py-4">
-          <Image src="/assets/rushxp-logo-sm.png" alt="RushXP" width={36} height={36} />
+          <Logo size={14} />
           <div>
             <div className="font-display text-lg font-bold leading-none">RushXP</div>
             <div className="text-[11px] uppercase tracking-[.08em] text-grey">Console · {isAdmin ? "Administrateur" : "Arbitre"}</div>

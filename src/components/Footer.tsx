@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { SOCIALS } from "@/lib/data/content";
 import { SocialIcon } from "./SocialIcon";
+import { Logo } from "@/components/Logo";
 
 const COLS: [string, [string, string][]][] = [
   ["Compétition", [["RushXP Rankings", "/rankings"], ["Classement général", "/classement"], ["RDV mensuels", "/rdv"], ["LAN & événements", "/lan"], ["Playoffs", "/playoffs"]]],
@@ -14,7 +14,7 @@ export function Footer() {
     <footer className="mt-16 border-t border-line bg-black">
       <div className="container-rx grid gap-8 py-10 [grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))]">
         <div className="grid content-start gap-3">
-          <Image src="/assets/rushxp-logo-sm.png" alt="RushXP" width={56} height={56} />
+          <Logo size={26} />
           <p className="max-w-xs text-sm leading-relaxed text-grey">La plateforme esports compétitive de La Réunion. Multi-jeux, multi-structures.</p>
           <div className="flex flex-wrap gap-2" aria-label="Réseaux RushXP">
             {SOCIALS.map((n) => (

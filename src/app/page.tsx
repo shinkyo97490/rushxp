@@ -13,6 +13,7 @@ import { SeasonTimeline } from "@/components/SeasonTimeline";
 import { getHome } from "@/lib/site/settings";
 import { activePartners, serveAd } from "@/lib/site/ads";
 import { upcomingItems } from "@/lib/matches/queries";
+import { Logo } from "@/components/Logo";
 
 
 export default async function Home() {
@@ -62,11 +63,11 @@ export default async function Home() {
             </div>
           </div>
           <div className="grid justify-items-end gap-4">
-            <Image src="/assets/rushxp-logo.png" alt="RushXP" width={190} height={190} className="hidden md:block" />
+            <Logo size={44} className="hidden md:inline-flex" />
             <div className="w-full max-w-[380px] border border-line bg-[rgba(20,20,20,.92)] backdrop-blur-sm">
               <div className="overline border-b border-line px-[18px] py-3 !tracking-[.12em]">{prelaunch ? "Prochaine saison" : "Saison active"}</div>
               <div className="grid grid-cols-3 gap-3 px-[18px] py-3.5">
-                <div><div className="text-xs text-grey">Phase</div><div className="font-display text-xl font-bold text-orange">{phase?.label ?? (prelaunch ? "Pré-lancement" : "Intersaison")}</div></div>
+                <div><div className="text-xs text-grey">Phase</div><div className="font-display text-xl font-bold text-orange">{phase?.label ?? (prelaunch ? "À venir" : "Intersaison")}</div></div>
                 <div><div className="text-xs text-grey">Jeux</div><div className="font-display text-xl font-bold">{GAMES.length}</div></div>
                 <div><div className="text-xs text-grey">Structures</div><div className="font-display text-xl font-bold">{structures}</div></div>
               </div>
@@ -192,16 +193,16 @@ export default async function Home() {
           <h2 id="jeux" className="font-display flex items-center gap-2.5 text-[34px] font-extrabold"><span className="h-6 w-1.5 bg-orange" />Les jeux</h2>
           <Link href="/competitions" className="text-sm font-semibold">Toutes les compétitions →</Link>
         </div>
-        <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr))]">
-          {GAMES.map((g) => (
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
+          {[...GAMES.filter((g) => g.kind === "challenge"), ...GAMES.filter((g) => g.kind !== "challenge")].map((g) => (
             <Link key={g.id} href={g.kind === "challenge" ? `/rankings?game=${g.id}` : "/rdv"} className="card group grid text-ink transition-colors duration-150 hover:border-[#5a5a5a] hover:text-ink">
-              <div className="relative grid h-[110px] place-items-center border-b border-line bg-black">
-                <Image src={g.logo} alt={g.name} width={150} height={70} className="max-h-[70px] w-auto object-contain" />
+              <div className="relative grid h-[84px] place-items-center border-b border-line bg-black px-3 sm:h-[110px]">
+                <Image src={g.logo} alt={g.name} width={150} height={70} className="max-h-[52px] w-auto max-w-full object-contain sm:max-h-[70px]" />
                 <span className="badge absolute top-2 right-2 bg-black text-silver !border-line">{g.format}</span>
               </div>
-              <div className="px-4 py-3">
-                <div className={`text-[11px] font-bold uppercase tracking-[.1em] ${g.kind === "challenge" ? "text-orange" : "text-yellow"}`}>{g.kind === "challenge" ? "RushXP Rankings" : "RDV mensuel"}</div>
-                <div className="font-display text-lg font-bold">{g.name}</div>
+              <div className="min-w-0 px-3 py-2.5 sm:px-4 sm:py-3">
+                <div className={`truncate text-[10px] font-bold uppercase tracking-[.1em] sm:text-[11px] ${g.kind === "challenge" ? "text-orange" : "text-yellow"}`}>{g.kind === "challenge" ? "RushXP Rankings" : "RDV mensuel"}</div>
+                <div className="truncate font-display text-base font-bold sm:text-lg">{g.name}</div>
               </div>
             </Link>
           ))}
