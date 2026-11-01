@@ -1,7 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { getGame, isSolo } from "@/lib/data/games";
-import { rankingRows } from "@/lib/rankings/queries";
 
 const MVP_VOTE_HOURS = 48;
 
@@ -81,33 +80,4 @@ export async function playerLeaderboard(year: number, game?: string) {
       return { id: u.id, pseudo: u.pseudo, team: u.contracts[0]?.structure.name ?? "Agent libre", mvp: s.mvp, played: s.played, wins: s.wins, games: [...s.games] };
     })
     .sort((a, b) => b.mvp - a.mvp || b.wins / Math.max(1, b.played) - a.wins / Math.max(1, a.played) || b.played - a.played || a.pseudo.localeCompare(b.pseudo));
-}
-
-/** Succès du joueur, calculés sur ses données réelles. */
-export async function achievements(userId: string, year: number) {
-  const board = await playerLeaderboard(year);
-  const me = board.find((p) => p.id === userId);
-  const rosterIds = (await db.rosterMember.findMany({ where: { userId, leftAt: null }, select: { rosterId: true } })).map((r) => r.rosterId);
-  const entityIds = [userId, ...rosterIds];
-  let division1 = false;
-  for (const g of ["val", "rl", "cod", "fc", "tek"]) {
-    const rows = await rankingRows(g, entityIds);
-    if (rows.some((r) => r.isMe && r.division === 1 && !r.inPlacement && rows.length >= 8)) division1 = true;
-  }
-  const rdv = await db.eventEntry.count({ where: { OR: [{ entityId: userId }, { members: { has: userId } }], event: { status: { in: ["LIVE", "DONE"] } } } });
-  const seeds = await db.seedSnapshot.findMany({ where: { year } });
-  const qualified = seeds.some((s) => (s.rows as { entityId: string }[]).some((r) => entityIds.includes(r.entityId)));
-  const finals = await db.match.findMany({ where: { round: "F", seasonYear: year, status: "DONE" }, select: { winner: true } });
-  const champion = finals.some((f) => f.winner && entityIds.includes(f.winner));
-  const user = await db.user.findUnique({ where: { id: userId }, select: { level: true } });
-  const b = (ico: string, t: string, d: string, cur: number, max: number, xp: number) => ({ ico, t, d, cur: Math.min(cur, max), max, xp, done: cur >= max });
-  return [
-    b("MVP", "Premier MVP", "Être élu MVP d’un match", me?.mvp ?? 0, 1, 50),
-    b("×10", "Série de 10", "Gagner 10 matchs classés", me?.wins ?? 0, 10, 150),
-    b("D1", "Division 1", "Atteindre la Division 1 RushXP Rankings", division1 ? 1 : 0, 1, 200),
-    b("RDV", "Habitué", "Jouer 3 rendez-vous mensuels", rdv, 3, 100),
-    b("XP", "Niveau 25", "Atteindre le niveau XP 25", user?.level ?? 1, 25, 250),
-    b("PO", "Playoffs", "Se qualifier pour les Playoffs", qualified ? 1 : 0, 1, 300),
-    b("1ER", "Champion", "Remporter une finale des Playoffs", champion ? 1 : 0, 1, 500),
-  ];
 }

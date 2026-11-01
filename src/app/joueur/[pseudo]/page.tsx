@@ -7,7 +7,10 @@ import { getViewer } from "@/lib/auth/viewer";
 import { resolvePrivacy } from "@/lib/account/preferences";
 import { getGame } from "@/lib/data/games";
 import { GAME_LINK } from "@/lib/validation";
-import { Empty } from "@/components/PageHeader";
+import { Empty } from "@/components/PageHeader";import { syncAchievements, unlockedAchievements } from "@/lib/achievements";
+import { ACHIEVEMENTS, levelProgress } from "@/lib/rules/achievements";
+import { AchievementBadge } from "@/components/achievements/AchievementGrid";
+
 
 type Params = { params: Promise<{ pseudo: string }> };
 
@@ -42,7 +45,10 @@ export default async function PlayerPage({ params }: Params) {
   const visible = isMe || privacy.profile === "Public" || (privacy.profile === "Membres RushXP" && !!viewer) || (privacy.profile === "Ma structure" && sameClub);
   const teams = u.memberships.map((m) => ({ ...m.roster, role: m.role, isCap: m.roster.captainId === u.id }));
   const main = teams[0] ? getGame(teams[0].game) : null;
-  const xpNext = 3000;
+  if (isMe) await syncAchievements(u.id);
+  const fresh = isMe ? await db.user.findUnique({ where: { id: u.id }, select: { xp: true } }) : null;
+  const lp = levelProgress(fresh?.xp ?? u.xp);
+  const unlocked = await unlockedAchievements(u.id);
 
   return (
     <main className="pb-16">
@@ -76,8 +82,8 @@ export default async function PlayerPage({ params }: Params) {
               <span className="text-grey">· {u.region === "RE" ? "Île de La Réunion" : u.region}</span>
             </div>
             <div className="mt-3 max-w-[360px]">
-              <div className="flex justify-between text-xs text-grey"><span>Niveau XP {u.level}</span><span>{u.xp} / {xpNext.toLocaleString("fr-FR")} XP</span></div>
-              <div className="mt-1 h-1 bg-surface-2"><div className="h-full bg-orange" style={{ width: `${Math.min(100, (u.xp / xpNext) * 100)}%` }} /></div>
+              <div className="flex justify-between text-xs text-grey"><span>Niveau {lp.level} · {unlocked.length} / {ACHIEVEMENTS.length} succès</span><span>{lp.cur} / {lp.need} XP</span></div>
+              <div className="mt-1 h-1 bg-surface-2"><div className="h-full bg-orange" style={{ width: `${(lp.cur / lp.need) * 100}%` }} /></div>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -133,6 +139,21 @@ export default async function PlayerPage({ params }: Params) {
                 );
               })}
               {teams.length === 0 && <Empty>Aucune équipe pour le moment.</Empty>}
+            </section>
+            <section className="card">
+              <div className="card-head"><span className="card-title">Succès</span><span className="card-meta">{unlocked.length} / {ACHIEVEMENTS.length}{isMe ? <> · <Link href="/mvp#succes">tous les succès</Link></> : null}</span></div>
+              {unlocked.length === 0 ? (
+                <Empty>Aucun succès débloqué pour l’instant.</Empty>
+              ) : (
+                <div className="grid gap-2 p-[18px] [grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr))]">
+                  {unlocked.map((a) => (
+                    <div key={a.code} className="flex items-center gap-2.5" title={a.desc}>
+                      <AchievementBadge a={{ ico: a.ico, done: true }} size="sm" />
+                      <span className="min-w-0"><span className="block truncate text-sm font-semibold">{a.title}</span><span className="block text-xs text-grey">+{a.xp} XP</span></span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
             <section className="card">
               <div className="card-head"><span className="card-title">Derniers matchs</span><span className="card-meta">Matchs validés uniquement</span></div>

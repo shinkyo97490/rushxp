@@ -180,6 +180,7 @@ model User {
   invitations     Invitation[]      @relation("InvitationUser")
   sentInvitations Invitation[]      @relation("InvitationSender")
   contracts       StructureMember[]
+  achievements    UserAchievement[]
   threadsA        Thread[]          @relation("ThreadA")
   threadsB        Thread[]          @relation("ThreadB")
 
@@ -1056,4 +1057,16 @@ model SiteSetting {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+/// Succès débloqués (définitifs) : l'XP du profil en découle.
+model UserAchievement {
+  userId     String
+  code       String
+  xp         Int
+  unlockedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, code])
 }

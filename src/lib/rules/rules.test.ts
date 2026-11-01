@@ -391,3 +391,18 @@ describe("détail des séries", () => {
     expect(gameLabel("rl", 2)).toBe("Partie 3");
   });
 });
+
+import { ACHIEVEMENTS, levelFor, levelProgress } from "./achievements";
+
+describe("succès et niveaux", () => {
+  it("codes uniques et barème positif", () => {
+    expect(new Set(ACHIEVEMENTS.map((a) => a.code)).size).toBe(ACHIEVEMENTS.length);
+    expect(ACHIEVEMENTS.every((a) => a.max >= 1 && a.xp > 0)).toBe(true);
+  });
+  it("niveau : 250 XP par niveau", () => {
+    expect(levelFor(0)).toBe(1);
+    expect(levelFor(249)).toBe(1);
+    expect(levelFor(250)).toBe(2);
+    expect(levelProgress(600)).toEqual({ level: 3, cur: 100, need: 250, next: 750 });
+  });
+});

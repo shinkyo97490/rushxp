@@ -66,6 +66,7 @@ export async function finalizeMatch(matchId: string, winnerId: string, w: number
   await logEvent(m.id, "SYSTEM", `Résultat officiel : ${await entityName(m.game, winnerId)} l’emporte ${w}–${l}.`);
   for (const id of [m.a, m.b]) await notifyEntity(m.game, id, `Playoffs : ${id === winnerId ? "qualification" : "élimination"} (${w}–${l}).`, `/playoffs?jeu=${m.game}`);
   if (m.round && m.seasonYear) await advance(m.game, m.seasonYear, m.round);
+  await (await import("@/lib/achievements")).syncMatchAchievements(m.id);
   return true;
 }
 

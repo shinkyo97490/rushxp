@@ -86,6 +86,7 @@ export async function applyResult(challengeId: string, winnerId: string, scoreW:
   });
   if (!done) return false;
   const { c, m, out } = done;
+  await (await import("@/lib/achievements")).syncMatchAchievements(m.id);
   const why = how === "auto" ? "validé automatiquement (24 h sans réponse)" : how === "referee" ? "validé par un arbitre" : "confirmé par l’adversaire";
   for (const [id, d] of [[m.a, out.deltaA], [m.b, out.deltaB]] as const) {
     const opp = await entityName(c.game, id === m.a ? m.b : m.a);

@@ -2,9 +2,13 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getViewer } from "@/lib/auth/viewer";
+import { db } from "@/lib/db";
 import { seasonYearAt } from "@/lib/rules/season";
 import { GAMES, getGame } from "@/lib/data/games";
-import { achievements, playerLeaderboard } from "@/lib/players";
+import { playerLeaderboard } from "@/lib/players";
+import { syncAchievements } from "@/lib/achievements";
+import { ACHIEVEMENTS } from "@/lib/rules/achievements";
+import { AchievementGrid } from "@/components/achievements/AchievementGrid";
 import { ClassementTabs } from "@/components/ClassementTabs";
 import { Empty } from "@/components/PageHeader";
 
@@ -18,7 +22,8 @@ export default async function MvpPage({ searchParams }: { searchParams: Promise<
   const year = seasonYearAt();
   const rows = (await playerLeaderboard(year, game === "all" ? undefined : game)).slice(0, 50);
   const viewer = await getViewer();
-  const badges = viewer ? await achievements(viewer.id, year) : null;
+  const badges = viewer ? await syncAchievements(viewer.id) : null;
+  const xp = viewer ? (await db.user.findUnique({ where: { id: viewer.id }, select: { xp: true } }))?.xp ?? 0 : null;
 
   return (
     <main className="container-rx pt-7 pb-16">
@@ -82,22 +87,9 @@ export default async function MvpPage({ searchParams }: { searchParams: Promise<
         {rows.length === 0 && <Empty>Aucun match validé cette saison{game !== "all" ? ` en ${getGame(game)?.name}` : ""}.</Empty>}
       </section>
 
-      <h2 className="font-display mt-10 text-[34px] font-extrabold">Succès à débloquer</h2>
-      <p className="text-sm text-silver">Les succès rapportent de l’XP de profil.{viewer ? ` Progression affichée pour ${viewer.pseudo}.` : " Connectez-vous pour suivre votre progression."}</p>
-      <div className="mt-3 grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr))]">
-        {(badges ?? []).map((x) => (
-          <div key={x.ico} className={`border bg-surface p-4 ${x.done ? "border-orange" : "border-line"}`}>
-            <div className="flex items-center gap-3">
-              <span className={`clip-corner-sm grid h-11 w-11 flex-none place-items-center font-display text-sm font-extrabold ${x.done ? "bg-orange text-bg" : "border border-line bg-bg text-silver"}`}>{x.ico}</span>
-              <span className="min-w-0 flex-1"><span className="block font-semibold">{x.t}</span><span className="block text-xs text-grey">{x.d}</span></span>
-              <span className="text-xs font-bold text-orange">+{x.xp} XP</span>
-            </div>
-            <div className="mt-3 h-1 bg-bg"><div className={`h-full ${x.done ? "bg-orange" : "bg-[#6a6a6a]"}`} style={{ width: `${Math.min(100, (x.cur / x.max) * 100)}%` }} /></div>
-            <div className={`mt-1 text-xs ${x.done ? "text-orange" : "text-grey"}`}>{x.done ? "✓ Débloqué" : `${x.cur} / ${x.max}`}</div>
-          </div>
-        ))}
-        {!badges && <p className="text-sm text-grey"><Link href="/connexion">Connectez-vous</Link> pour voir vos succès.</p>}
-      </div>
+      <h2 id="succes" className="font-display mt-10 scroll-mt-24 text-[34px] font-extrabold">Succès à débloquer</h2>
+      <p className="mb-4 text-sm text-silver">{ACHIEVEMENTS.length} succès, calculés sur vos vrais résultats. Chaque succès débloqué est définitif et rapporte de l’XP : 250 XP = 1 niveau.{viewer ? "" : " "}{!viewer && <><Link href="/connexion">Connectez-vous</Link> pour suivre votre progression.</>}</p>
+      <AchievementGrid list={badges ?? ACHIEVEMENTS.map((a) => ({ ...a, cur: 0, done: false, unlockedAt: null }))} xp={xp} />
     </main>
   );
 }
