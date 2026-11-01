@@ -14,6 +14,7 @@ export async function GET(req: Request) {
   await enqueue("maintenance.daily", new Date(), {}, `maintenance.daily:${day}`);
   await enqueue("events.ensure-next", new Date(), {}, `events.ensure-next:${day}`);
   await enqueue("rankings.daily", new Date(), {}, `rankings.daily:${day}`);
+  await enqueue("playoffs.daily", new Date(), {}, `playoffs.daily:${day}`);
 
   const report = await runDueJobs();
   return Response.json(report, { headers: { "Cache-Control": "no-store" } });

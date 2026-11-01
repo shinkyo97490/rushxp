@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { CHALLENGE_GAMES, getGame, type ChallengeGameId } from "@/lib/data/games";
-import { playoffBracket, type BracketMatch } from "@/lib/data/demo-competition";
-import { DemoNotice } from "@/components/PageHeader";
+import { CHALLENGE_GAMES, getGame } from "@/lib/data/games";
+import { getPlayoffs } from "@/lib/playoffs";
+
+type BracketMatch = Awaited<ReturnType<typeof getPlayoffs>>["qf"][number];
+const fmtWhen = (iso: string | null) => (iso ? new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(new Date(iso)) : "Date à fixer");
 
 export const metadata: Metadata = { title: "Playoffs" };
 
 function MatchBox({ m }: { m: BracketMatch }) {
-  return (
-    <div className={`border bg-surface ${m.state === "En direct" ? "border-red" : "border-line"}`}>
+  const box = (
+    <div className={`border bg-surface ${m.state === "Contesté" ? "border-red" : "border-line"}`}>
       <div className="flex justify-between gap-2 border-b border-surface-2 px-3 py-1.5 text-[11px]">
-        <span className="text-grey">{m.when}</span>
+        <span className="text-grey">{fmtWhen(m.when)}</span>
         <span className={m.state === "Terminé" ? "text-grey" : "text-orange"}>{m.state}</span>
       </div>
       {m.sides.map((s, i) => (
@@ -23,13 +25,14 @@ function MatchBox({ m }: { m: BracketMatch }) {
       ))}
     </div>
   );
+  return m.id ? <Link href={m.state === "Terminé" ? `/feuille-de-match?m=${m.id}` : `/match?m=${m.id}`} className="block text-ink hover:text-ink">{box}</Link> : box;
 }
 
 export default async function PlayoffsPage({ searchParams }: { searchParams: Promise<{ jeu?: string }> }) {
   const { jeu } = await searchParams;
   const g = CHALLENGE_GAMES.find((x) => x.id === jeu) ?? CHALLENGE_GAMES[0];
-  const { qf, sf, fi, seeds } = playoffBracket(g.id as ChallengeGameId);
-  const year = new Date().getFullYear();
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(new Date()));
+  const { qf, sf, fi, seeds, champion, frozen } = await getPlayoffs(g.id, year);
   const rounds: [string, string, BracketMatch[]][] = [["Quarts", "septembre", qf], ["Demi-finales", "octobre", sf], ["Finale", "nov. → déc.", fi]];
 
   return (
@@ -86,7 +89,7 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
               ))}
               <div className="grid justify-items-center gap-1 border border-yellow bg-[rgba(255,201,40,.06)] px-4 py-6 text-center">
                 <span className="overline !text-yellow">Champion</span>
-                <span className="font-display text-xl font-bold italic text-grey">À déterminer</span>
+                <span className={`font-display text-xl font-bold ${champion ? "text-ink" : "italic text-grey"}`}>{champion?.name ?? "À déterminer"}</span>
                 <span className="font-display text-2xl font-extrabold text-yellow">500 €</span>
               </div>
             </div>
@@ -95,12 +98,13 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
 
         <div className="grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))]">
           <section className="card">
-            <div className="card-head"><span className="card-title">Qualifiés · seeding du 31 août</span></div>
+            <div className="card-head"><span className="card-title">{frozen ? "Qualifiés · seeding officiel" : "Aperçu · si la saison s’arrêtait aujourd’hui"}</span></div>
+            {seeds.length === 0 && <div className="px-[18px] py-4 text-sm text-grey">Aucun qualifié : le classement {getGame(g.id)?.name} ne compte encore aucun participant hors placement.</div>}
             {seeds.map((s) => (
               <div key={s.seed} className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 border-b border-surface-2 px-[18px] py-2 text-sm">
                 <span className={`font-display text-lg font-extrabold ${s.seed === 1 ? "text-yellow" : ""}`}>{s.seed}</span>
                 <span className="truncate font-semibold">{s.name}</span>
-                <span className={`text-xs font-bold ${s.state === "Éliminé" ? "text-grey" : s.state === "En demi-finale" ? "text-orange" : "text-silver"}`}>{s.state}</span>
+                <span className={`text-xs font-bold ${s.state === "Éliminé" ? "text-grey" : s.state === "Champion" ? "text-yellow" : s.state === "En lice" ? "text-silver" : "text-orange"}`}>{frozen ? s.state : "Provisoire"}</span>
               </div>
             ))}
           </section>
@@ -117,7 +121,11 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
             </div>
           </section>
         </div>
-        <DemoNotice>Arbre construit à partir du classement de démonstration. Il sera généré depuis le seeding officiel figé (SeedSnapshot).</DemoNotice>
+        <p className="text-xs text-grey">
+          {frozen
+            ? `Seeding officiel figé le ${new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Indian/Reunion" }).format(new Date(frozen.at))} · empreinte SHA-256 ${frozen.hash.slice(0, 16)}…`
+            : "Seeding pas encore figé : l’arbre affiché est un aperçu calculé sur le classement actuel."}
+        </p>
       </div>
     </main>
   );

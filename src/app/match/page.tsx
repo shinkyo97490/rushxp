@@ -1,58 +1,64 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { getRole } from "@/lib/session";
+import { notFound } from "next/navigation";
+import { getViewer } from "@/lib/auth/viewer";
 import { getGame } from "@/lib/data/games";
-import { demoMatches } from "@/lib/data/demo-competition";
-import { STRUCTURES } from "@/lib/data/demo";
-import { DemoNotice } from "@/components/PageHeader";
-import { MatchCenter, type MatchInfo } from "@/components/match/MatchCenter";
+import { calendarItems, type CalendarItem } from "@/lib/matches/queries";
+import { getMatchRoom } from "@/lib/matches/room";
+import { MatchRoom } from "@/components/match/MatchRoom";
+import { Empty, PageHeader } from "@/components/PageHeader";
 
 export const metadata: Metadata = { title: "Match Center" };
 
-const PICKER = ["val", "cod", "rl", "fc", "tek", "tft"] as const;
-const tagOf = (name: string) => STRUCTURES.find((s) => name.startsWith(s.name) || name.includes(`(${s.tag})`))?.tag ?? name.slice(0, 3).toUpperCase();
+const fmt = (d: Date) => new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(d);
 
-export default async function MatchPage({ searchParams }: { searchParams: Promise<{ m?: string; jeu?: string }> }) {
-  const sp = await searchParams;
-  const role = await getRole();
-  const all = demoMatches();
-  const jeu = PICKER.find((g) => g === sp.jeu);
-  const found = all.find((x) => x.id === sp.m) ?? (jeu ? all.find((x) => x.game === jeu && x.state !== "Terminé") : all[0]);
-  const game = (jeu ?? found?.game ?? "val") as MatchInfo["game"];
-  const g = getGame(game)!;
-  const a = found && found.game === game ? found.a : game === "tft" ? "Lobby C" : "Équipe A";
-  const b = found && found.game === game ? found.b : game === "tft" ? "Manche 3" : "Équipe B";
-  const info: MatchInfo = {
-    game,
-    gameName: g.name,
-    logo: g.logo,
-    comp: found && found.game === game ? found.comp : game === "tft" ? "Rendez-vous mensuel · TFT" : `RushXP Rankings · ${g.name}`,
-    series: g.series ?? "6 manches",
-    a,
-    b,
-    aTag: tagOf(a),
-    bTag: tagOf(b),
-  };
-  // Démo : un membre connecté (hors arbitrage) joue pour l'équipe A.
-  const participant = ["joueur", "capitaine", "gestionnaire"].includes(role);
-
+function MatchList({ title, list }: { title: string; list: CalendarItem[] }) {
   return (
-    <main className="mx-auto max-w-[1440px] px-[clamp(16px,3vw,32px)] pt-4 pb-12">
-      <nav className="mb-3 flex flex-wrap items-center gap-1.5 text-[13px]" aria-label="Jeu de démonstration">
-        <span className="text-grey">Jeu (démo) :</span>
-        {PICKER.map((id) => {
-          const x = getGame(id)!;
-          return (
-            <Link key={id} href={`/match?jeu=${id}`} aria-current={id === game ? "page" : undefined} className={`flex h-9 items-center gap-1.5 border px-2.5 text-ink hover:text-ink ${id === game ? "border-orange bg-surface-2" : "border-line hover:border-[#5a5a5a]"}`}>
-              <Image src={x.logo} alt="" width={22} height={14} className="h-3.5 w-[22px] object-contain" />
-              {x.short}
-            </Link>
-          );
-        })}
-      </nav>
-      <MatchCenter key={game} m={info} role={role} participant={participant} />
-      <DemoNotice>Match Center de démonstration : veto, check-in, chat et lecture OCR sont simulés dans le navigateur. Ils passeront par le serveur et le temps réel avec les défis en base.</DemoNotice>
+    <section className="card">
+      <div className="card-head"><span className="card-title">{title}</span><span className="card-meta">{list.length} match(s)</span></div>
+      {list.length === 0 && <Empty>Aucun match.</Empty>}
+      {list.map((m) => {
+        const g = getGame(m.game);
+        return (
+          <Link key={m.id} href={m.href} className="list-row grid items-center gap-3 text-ink hover:text-ink [grid-template-columns:32px_minmax(0,1fr)_auto]">
+            {g && <Image src={g.logo} alt={g.name} width={30} height={20} className="h-5 w-[30px] object-contain" />}
+            <span className="min-w-0"><span className="block truncate font-semibold">{m.a} <span className="text-grey">vs</span> {m.b}</span><span className="block truncate text-xs text-grey first-letter:uppercase">{fmt(m.when)} · {m.comp}</span></span>
+            <span className={`text-xs font-bold ${m.state === "En direct" || m.state === "Contesté" ? "text-red" : "text-orange"}`}>{m.state}</span>
+          </Link>
+        );
+      })}
+    </section>
+  );
+}
+
+export default async function MatchPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
+  const sp = await searchParams;
+  const viewer = await getViewer();
+  if (sp.m) {
+    const room = await getMatchRoom(sp.m, viewer);
+    if (!room) notFound();
+    return (
+      <main className="mx-auto max-w-[1440px] px-[clamp(16px,3vw,32px)] pt-4 pb-12">
+        <Link href="/match" className="mb-3 inline-block text-[13px]">← Tous les matchs</Link>
+        <MatchRoom m={room} />
+      </main>
+    );
+  }
+  // Sans match précisé : vos matchs, puis les matchs en cours et à venir.
+  const now = new Date();
+  const items = (await calendarItems({ viewer, from: new Date(now.getTime() - 3 * 36e5), to: new Date(now.getTime() + 14 * 86_400_000) })).filter((i) => i.type === "Défi" || i.type === "Playoffs");
+  const mine = items.filter((i) => i.mine);
+  const others = items.filter((i) => !i.mine);
+  return (
+    <main className="container-rx pt-7 pb-16">
+      <PageHeader title="Match Center" actions={<Link href="/calendrier" className="btn btn-secondary">Calendrier</Link>}>
+        Check-in, veto des cartes, diffusion, déclaration du résultat et salon du match. Un match apparaît ici dès qu’un défi est planifié.
+      </PageHeader>
+      <div className="mt-5 grid gap-4">
+        {viewer && <MatchList title="Vos matchs" list={mine} />}
+        <MatchList title="En cours et à venir" list={others} />
+      </div>
     </main>
   );
 }

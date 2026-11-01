@@ -103,17 +103,17 @@ Une page interne `/admin/ui` (réservée aux admins) montrera tous les états po
 |---|---|---|
 | Accueil, bloc « Pour vous » | Fait | Contenu piloté par `ContentItem HOME`, prochaine échéance réelle |
 | RushXP Rankings, Centre des défis | **Fait (en base)** : entrée au classement, appariements de placement, défis à 3 créneaux, relance 24 h, expiration 48 h, refus motivé ou −40, déclaration du score, confirmation / contestation, validation auto 24 h, Elo, limite par paire, immunité, inactivité | Seeding figé le 31 août (lot E), congés déclarés |
-| Calendrier | Démo | Défis confirmés, RDV, Playoffs, LAN en base ; filtre « LAN » |
+| Calendrier | **Fait** : défis, Playoffs, RDV et LAN en base, filtres (mes matchs, LAN, résultats récents), heure de La Réunion | — |
 | Classement général | **Fait (en base)** : Rankings, cumul des RDV hors pré-saison, LAN terminées ; indicatif en pré-saison | Détail cliquable par structure |
-| Match Center | Interface complète par jeu, **état local** | Persistance, temps réel, check-in avec forfait automatique, diffusion annoncée dans le chat, OCR mocké derrière l’interface, journal officiel |
-| Feuille de match | Démo | `PlayerMatchStat`, liens depuis profils et calendrier |
-| Espace arbitre | Signalements réels, contestations démo | `Dispute` en base, preuve à côté des valeurs, décision motivée, sanction |
+| Match Center | **Fait (en base)** : check-in avec forfait automatique, veto Valorant / CDL avec pool figé, diffusion, salon et signalement, déclaration / confirmation / contestation, décision d’arbitre, vote MVP, journal officiel ; actualisation toutes les 6 s | Temps réel (Ably), envoi de captures et lecture OCR |
+| Feuille de match | **Fait** : score officiel, cartes jouées, compositions, journal, décision d’arbitre | Statistiques individuelles (OCR / API éditeur) |
+| Espace arbitre | **Fait** : contestations, signalements (salon de match et messagerie), comparaison, extrait du salon, décision motivée | Preuve image (stockage) |
 | Structures, équipes, recrutement, transferts | **Réel** | Bouton Suivre, KPI réels (rang, points, écart au leader, titres) |
 | Profil joueur | Réel (sans statistiques) | Statistiques par jeu, forme sur 10 matchs, distinctions |
-| Joueurs & MVP | Démo | Élection MVP par match, succès XP réels |
-| RDV mensuels | Inscriptions réelles, résultats démo | Saisie arbitre (lobbys, placements, éliminations), recomposition TFT, cumul saison |
-| Playoffs | Démo | Génération depuis le seeding figé |
-| Compétition par jeu | Partiel | Onglets selon la phase, tirage animé, depuis `Competition` |
+| Joueurs & MVP | **Fait** : MVP élu par les joueurs (48 h), matchs et victoires, succès calculés | Note RushXP (statistiques) |
+| RDV mensuels | **Fait** : inscriptions, saisie arbitre manche par manche (brouillon / publication), lobbys TFT recomposés, clôture, cumul au classement général | Lecture des captures |
+| Playoffs | **Fait** : seeding figé (SHA-256) au 31 août ou manuellement, quarts générés, dates fixées par l’admin, qualification automatique au tour suivant | Garde-fou « une équipe par joueur et par saison » |
+| Compétition par jeu | **Fait** : phase en cours, vrais matchs, participants vérifiés | Tirage animé |
 | **LAN & événements** | **Fait** (`/lan`, console › LAN) : fiche avec compte à rebours, onglets Infos / Tournois & tarifs / Inscrits / Résultats / Inscription, inscription équipe ou solo en 4 étapes, paiement Stripe simulé (désactivé en production tant que Stripe n’est pas branché), annulation et remboursement, saisie du classement par les arbitres, validation, points par structure (meilleur classement par jeu) | Adaptateur Stripe réel + webhook signé, billet QR, autorisation parentale (mineurs), envoi d’affiche, points LAN dans le grand livre du classement général (lot B) |
 | Actualités | Réel (posts, j’aime, commentaires, sondages) | Réactions multiples, médias (stockage), sponsorisé piloté par `AdCampaign`, notification aux abonnés |
 | Partenaires, publicités | Contenu en dur, campagnes démo | `Partner`, `AdCampaign`, mesure des impressions et clics |

@@ -502,15 +502,72 @@ model Match {
   deltaA      Int?
   deltaB      Int?
   playedAt    DateTime?
+  /// Playoffs : QF1…QF4, SF1, SF2, F
+  round       String?
+  seasonYear  Int?
 
   challenge   Challenge?         @relation(fields: [challengeId], references: [id])
   veto        Veto?
   submissions ResultSubmission[]
+  events      MatchEvent[]
+  mvpVotes    MatchMvp[]
+}
+
+enum MatchEventKind {
+  CHAT
+  SYSTEM
+  REFEREE
+}
+
+/// Vote MVP après un match validé (un vote par participant, 48 h).
+model MatchMvp {
+  matchId   String
+  voterId   String
+  playerId  String
+  createdAt DateTime @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@id([matchId, voterId])
+  @@index([playerId])
+}
+
+/// Salon et journal officiel d'un match (chat, check-in, veto, diffusion, résultat).
+model MatchEvent {
+  id        String         @id @default(cuid())
+  matchId   String
+  kind      MatchEventKind
+  authorId  String?
+  side      String? // "a" | "b" | null (arbitre / système)
+  text      String
+  reported  Boolean        @default(false)
+  hidden    Boolean        @default(false)
+  createdAt DateTime       @default(now())
+
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, createdAt])
+}
+
+/// Map pool par jeu et par cycle. Le cycle actif est le plus récent dont la date de début est passée.
+model MapCycle {
+  id          String   @id @default(cuid())
+  game        String
+  name        String
+  startsAt    DateTime
+  /// val : ["Ascent", …] ; cod : { HP: [...], SND: [...], CTRL: [...] }
+  maps        Json
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([game, startsAt])
 }
 
 model Veto {
   matchId String @id
   steps   Json // [{ actor, action: ban|pick|side, map, mode }]
+  /// pool de cartes figé au début du veto (un changement de cycle ne l'affecte pas)
+  pool    Json   @default("[]")
 
   match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 }
@@ -628,9 +685,13 @@ model EventResult {
 model SeedSnapshot {
   id      String   @id @default(cuid())
   game    String
+  year    Int      @default(2026)
   takenAt DateTime
   hash    String
+  /// [{ seed, entityId, name, score }]
   rows    Json
+
+  @@unique([game, year])
 }
 
 model Notification {

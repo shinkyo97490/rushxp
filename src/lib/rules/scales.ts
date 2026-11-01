@@ -64,3 +64,36 @@ export function lanStructurePoints(rows: { game: string; place: number; structur
     .map(([structure, g]) => ({ structure, points: [...g.values()].reduce((a, b) => a + b, 0), byGame: Object.fromEntries(g) }))
     .sort((a, b) => b.points - a.points || a.structure.localeCompare(b.structure));
 }
+
+export interface RoundResult {
+  entryId: string;
+  round: number; // 1 → 6
+  placement: number;
+  kills: number;
+  points: number;
+}
+
+/** Classement d'un RDV : total des points, puis nombre de top 4, puis meilleure place. */
+export function eventStandingsFrom(entries: { id: string; name: string; sub: string }[], results: RoundResult[], rounds = 6) {
+  return entries
+    .map((e) => {
+      const mine = results.filter((r) => r.entryId === e.id);
+      const byRound = Array.from({ length: rounds }, (_, i) => mine.find((r) => r.round === i + 1) ?? null);
+      return {
+        ...e,
+        rounds: byRound,
+        total: mine.reduce((a, r) => a + r.points, 0),
+        kills: mine.reduce((a, r) => a + r.kills, 0),
+        top4: mine.filter((r) => r.placement <= 4).length,
+        best: Math.min(99, ...mine.map((r) => r.placement)),
+      };
+    })
+    .sort((a, b) => b.total - a.total || b.top4 - a.top4 || a.best - b.best || a.name.localeCompare(b.name));
+}
+
+/** TFT : lobbys de 8 recomposés selon le classement cumulé (1–8, 9–16…). */
+export function tftLobbies<T>(standing: T[], size = 8): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < standing.length; i += size) out.push(standing.slice(i, i + size));
+  return out;
+}

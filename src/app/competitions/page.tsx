@@ -4,11 +4,11 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { GAMES, getGame } from "@/lib/data/games";
 import { RULES_GAME } from "@/lib/data/content";
-import { demoMatches, topOf } from "@/lib/data/demo-competition";
-import { getSeason } from "@/lib/season";
+import { getSeasonContext } from "@/lib/season";
+import { getViewer } from "@/lib/auth/viewer";
+import { calendarItems } from "@/lib/matches/queries";
 import { SeasonTimeline } from "@/components/SeasonTimeline";
-import { DemoNotice, Empty, TabLinks } from "@/components/PageHeader";
-import type { ChallengeGameId } from "@/lib/data/games";
+import { Empty, TabLinks } from "@/components/PageHeader";
 
 export const metadata: Metadata = { title: "Compétitions" };
 
@@ -35,8 +35,9 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
     orderBy: { createdAt: "asc" },
   });
   const now = new Date();
-  const season = await getSeason(now.getFullYear());
-  const matches = demoMatches().filter((m) => m.game === g.id);
+  const { season, phase } = await getSeasonContext(now);
+  const viewer = await getViewer();
+  const matches = (await calendarItems({ viewer, from: new Date(now.getTime() - 14 * 86_400_000), to: new Date(now.getTime() + 60 * 86_400_000), game: g.id })).slice(0, 12);
   const base = `/competitions?jeu=${g.id}`;
 
   return (
@@ -62,8 +63,8 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
           </div>
           <div className="min-w-0 flex-[1_1_360px]">
             <div className="flex flex-wrap items-center gap-2 text-[13px]">
-              <span className="badge text-orange">{lobby ? "Inscriptions ouvertes" : "Phase en cours · Playoffs"}</span>
-              <span className="text-silver">{g.name} · {g.format} · Saison {now.getFullYear()}</span>
+              <span className="badge text-orange">{lobby ? "Inscriptions ouvertes" : `Phase en cours · ${phase?.label ?? "intersaison"}`}</span>
+              <span className="text-silver">{g.name} · {g.format} · {season.name}</span>
             </div>
             <h1 className="font-display mt-1 text-[clamp(40px,6vw,60px)] font-extrabold leading-[.95]">{d.comp}</h1>
             <p className="mt-2 max-w-[640px] text-[15px] text-silver">{d.desc}</p>
@@ -98,15 +99,15 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
                 </Link>
               )}
               <section className="card">
-                <div className="card-head"><span className="card-title">Matchs</span><span className="badge text-silver">Démo</span></div>
+                <div className="card-head"><span className="card-title">Matchs</span><Link href="/calendrier" className="text-[13px]">Calendrier →</Link></div>
                 {matches.map((m) => (
-                  <Link key={m.id} href={m.state === "Terminé" ? `/feuille-de-match?m=${m.id}` : `/match?m=${m.id}`} className="list-row grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3 text-ink hover:text-ink">
-                    <span className="text-xs text-orange">{new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(m.when)}</span>
+                  <Link key={m.id} href={m.href} className="list-row grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3 text-ink hover:text-ink">
+                    <span className="text-xs text-orange">{new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(m.when)}</span>
                     <span className="truncate font-semibold">{m.a} <span className="text-grey">vs</span> {m.b}{m.score ? ` · ${m.score}` : ""}</span>
-                    <span className="text-[13px] font-semibold text-orange">{m.state === "Terminé" ? "Détails →" : "Match Center →"}</span>
+                    <span className="text-[13px] font-semibold text-orange">{m.type === "RDV mensuel" ? "RDV →" : m.state === "Terminé" ? "Détails →" : "Match Center →"}</span>
                   </Link>
                 ))}
-                {matches.length === 0 && <Empty>Le calendrier sera publié après la clôture des inscriptions.</Empty>}
+                {matches.length === 0 && <Empty>{lobby ? "Le prochain RDV est publié sur la page RDV mensuels." : "Aucun match programmé : les défis apparaissent ici dès qu’un créneau est choisi."}</Empty>}
               </section>
             </div>
             <div className="grid gap-4">
@@ -151,8 +152,8 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
               );
             })}
             {rosters.length === 0 && <Empty>Aucune équipe vérifiée sur {g.name} pour l’instant. <Link href="/structure/nouvelle">Engager votre structure →</Link></Empty>}
-            {!lobby && topOf(g.id as ChallengeGameId).length > 0 && (
-              <div className="border-t border-line px-[18px] py-3 text-xs text-grey">Le classement de démonstration reste visible dans <Link href={`/rankings?game=${g.id}`}>RushXP Rankings</Link>.</div>
+            {!lobby && rosters.length > 0 && (
+              <div className="border-t border-line px-[18px] py-3 text-xs text-grey">Classement et scores dans <Link href={`/rankings?game=${g.id}`}>RushXP Rankings</Link>.</div>
             )}
           </section>
         )}
@@ -168,7 +169,6 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
             ))}
           </section>
         )}
-        {tab === "apercu" && <DemoNotice>Les matchs affichés sont des exemples. Les inscrits sont réels (structures vérifiées).</DemoNotice>}
       </div>
     </main>
   );

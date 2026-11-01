@@ -4,39 +4,61 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { resolveReportAction } from "@/lib/admin/actions";
+import { moderateMatchChatAction, refereeDecisionAction } from "@/lib/matches/actions";
 import { FormError, TextArea } from "@/components/forms";
 import { useServerAction } from "@/components/useServerAction";
 
-/** Décision sur un cas de démonstration : état local uniquement (la table Dispute arrive avec les matchs). */
-export function DemoDecision({ actions }: { actions: string[] }) {
-  const [note, setNote] = useState("");
-  const [done, setDone] = useState<string | null>(null);
-  const [pending, setPending] = useState<string | null>(null);
-  if (done)
-    return (
-      <div role="status" className="border border-orange bg-active-tint px-[18px] py-3 text-sm">
-        ✓ {done}
-        {note ? ` · ${note}` : ""} <span className="text-xs text-grey">(démonstration : non enregistré)</span>
-      </div>
-    );
+/** Décision motivée sur un résultat contesté : appliquée au classement et inscrite au journal du match. */
+export function DisputeDecision({ matchId, a: teamA, b: teamB, scores }: { matchId: string; a: string; b: string; scores: [number, number][] }) {
+  const router = useRouter();
+  const [winner, setWinner] = useState<"a" | "b">("a");
+  const [si, setSi] = useState(0);
+  const [reason, setReason] = useState("");
+  const act = useServerAction(refereeDecisionAction, {
+    onDone: (r) => {
+      if (r.ok) router.replace(`/arbitrage?msg=${encodeURIComponent(r.message ?? "Décision rendue.")}`, { scroll: false });
+    },
+  });
   return (
-    <div className="grid gap-3 border-t border-line p-[18px]">
+    <form className="grid gap-3 border-t border-line p-[18px]" onSubmit={(e) => { e.preventDefault(); act.run({ matchId, winner, score: scores[si], reason }); }}>
+      <div className="flex flex-wrap gap-1.5">
+        {(["a", "b"] as const).map((k) => (
+          <button key={k} type="button" aria-pressed={winner === k} onClick={() => setWinner(k)} className={`btn btn-sm ${winner === k ? "btn-primary" : "btn-tertiary"}`}>Victoire {k === "a" ? teamA : teamB}</button>
+        ))}
+        <select className="field !h-9" aria-label="Score" value={si} onChange={(e) => setSi(Number(e.target.value))}>
+          {scores.map(([x, y], i) => <option key={i} value={i}>{x}–{y}</option>)}
+        </select>
+      </div>
       <label className="grid gap-1.5">
-        <span className="overline">Note de décision (visible par les deux équipes)</span>
-        <TextArea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="ex. Capture lisible, score confirmé par le chat." />
+        <span className="overline">Motif (visible par les deux équipes)</span>
+        <TextArea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={!!act.errors.reason} placeholder="ex. Capture lisible, score confirmé par le chat (art. 5.2)." />
+        {act.errors.reason && <span className="text-[13px] text-red">{act.errors.reason}</span>}
       </label>
       <div className="flex flex-wrap gap-1.5">
-        {actions.map((a, i) => (
-          <button key={a} className={`btn btn-sm ${i === 0 ? "btn-primary" : a.startsWith("Sanction") ? "btn-danger" : "btn-tertiary"}`} onClick={() => setPending(a)}>{a}</button>
-        ))}
+        <button className="btn btn-primary btn-sm" disabled={act.pending}>Rendre la décision</button>
+        <Link href={`/match?m=${matchId}`} className="btn btn-tertiary btn-sm">Ouvrir le Match Center</Link>
+        <Link href="/admin?s=sanctions" className="btn btn-tertiary btn-sm">Appliquer une sanction →</Link>
       </div>
-      {pending && (
-        <div className="flex flex-wrap items-center gap-2 border border-line bg-bg px-3 py-2.5 text-[13px]">
-          <span className="flex-1">Confirmer « {pending} » ? La décision est notifiée aux deux parties et inscrite au journal d’audit.</span>
-          <button className="btn btn-primary btn-sm" onClick={() => setDone(pending)}>Confirmer</button>
-          <button className="btn btn-tertiary btn-sm" onClick={() => setPending(null)}>Annuler</button>
-        </div>
-      )}
+      <FormError message={act.errors._} />
+    </form>
+  );
+}
+
+export function MatchChatDecision({ eventId }: { eventId: string }) {
+  const router = useRouter();
+  const act = useServerAction(moderateMatchChatAction, {
+    onDone: (r) => {
+      if (r.ok) router.replace(`/arbitrage?msg=${encodeURIComponent(r.message ?? "Dossier traité.")}`, { scroll: false });
+    },
+  });
+  return (
+    <div className="grid gap-2 border-t border-line p-[18px]">
+      <FormError message={act.errors._} />
+      <div className="flex flex-wrap gap-1.5">
+        <button className="btn btn-danger btn-sm" disabled={act.pending} onClick={() => act.run({ eventId, hide: true })}>Masquer le message</button>
+        <button className="btn btn-tertiary btn-sm" disabled={act.pending} onClick={() => act.run({ eventId, hide: false })}>Classer sans suite</button>
+        <Link href="/admin?s=sanctions" className="btn btn-tertiary btn-sm">Appliquer une sanction →</Link>
+      </div>
     </div>
   );
 }

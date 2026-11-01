@@ -5,10 +5,10 @@ import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { getGame } from "@/lib/data/games";
 import { EVENT_FORMATS } from "@/lib/data/content";
-import { EVENT_DONE, EVENT_MONTHS, PRESEASON_MONTHS, eventStandings } from "@/lib/data/demo-competition";
-import { LOBBY_SCALES } from "@/lib/rules/scales";
 import { ensureNextEvent } from "@/lib/events/queries";
-import { DemoNotice, PageHeader } from "@/components/PageHeader";
+import { eventResults, lobbyScale, seasonEvents } from "@/lib/events/results";
+import { getSeasonContext } from "@/lib/season";
+import { Empty, PageHeader } from "@/components/PageHeader";
 import { EventRegistration } from "@/components/EventRegistration";
 
 export const metadata: Metadata = { title: "RDV mensuels" };
@@ -23,7 +23,7 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
   const g = getGame(game)!;
   const f = EVENT_FORMATS[game];
   const solo = f.size === 1;
-  const scale = LOBBY_SCALES[game];
+  const scale = await lobbyScale(game);
   const viewer = await getViewer();
   const ev = await ensureNextEvent(game);
   const entries = await db.eventEntry.findMany({ where: { eventId: ev.id }, select: { entityId: true, members: true } });
@@ -42,19 +42,25 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
   const dateFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "long" });
   const monthName = new Intl.DateTimeFormat("fr-FR", { month: "long" }).format(ev.date);
 
-  const month = Math.min(EVENT_MONTHS.length - 1, Math.max(0, Number(sp.mois ?? EVENT_MONTHS.length - 1)));
-  const shownMonth = EVENT_DONE.has(month) ? month : EVENT_MONTHS.length - 1;
+  const { season } = await getSeasonContext(new Date());
+  const events = await seasonEvents(game, season.year);
+  const withResults = events.filter((e) => e.status === "LIVE" || e.status === "DONE");
+  const shown = events.find((e) => e.month === sp.mois) ?? withResults.at(-1) ?? null;
+  const res = shown ? await eventResults(shown.id) : null;
   const view = sp.vue && /^[0-5]$/.test(sp.vue) ? Number(sp.vue) : -1;
-  const standing = eventStandings(game, shownMonth);
+  const standing = res?.standing ?? [];
+  const counts = (d: Date) => season.phases.some((p) => p.countsForGeneral && d >= p.startsAt && d <= p.endsAt);
+  const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "short", timeZone: "Indian/Reunion" });
+  const shownLabel = shown ? new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "Indian/Reunion" }).format(shown.date) : "";
   const q = (o: Record<string, string | number | undefined>) => {
-    const p = new URLSearchParams({ jeu: game, mois: String(shownMonth) });
+    const p = new URLSearchParams({ jeu: game, mois: shown?.month ?? "" });
     for (const [k, v] of Object.entries(o)) if (v === undefined) p.delete(k); else p.set(k, String(v));
     return `/rdv?${p}`;
   };
 
   return (
     <main className="container-rx pt-7 pb-16">
-      <PageHeader overline={`Formats en lobby · saison ${new Date().getFullYear()}`} title="Rendez-vous mensuels">
+      <PageHeader overline={`Formats en lobby · ${season.name}`} title="Rendez-vous mensuels">
         Les jeux qui se jouent en lobby n’utilisent pas les défis. Un rendez-vous par mois et par jeu, en 6 manches. Les points de chaque manche s’additionnent, et le total décide du classement du mois.
       </PageHeader>
       <div className="mt-4 grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))]">
@@ -122,31 +128,33 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
       </div>
 
       <nav className="mt-5 flex overflow-x-auto border border-line bg-surface" aria-label="Mois">
-        {EVENT_MONTHS.map((m, i) => {
-          const done = EVENT_DONE.has(i);
-          const pre = i < PRESEASON_MONTHS;
-          const cls = `min-w-[96px] flex-1 border-r border-b-2 border-r-line px-3 py-2 text-center ${i === shownMonth ? "border-b-orange bg-surface-2" : "border-b-transparent"}`;
-          const inner = (
-            <>
-              <div className="font-display text-base font-bold">{m}</div>
-              <div className="text-[11px] text-silver">{done ? "✓ Terminé" : ""}</div>
+        {events.map((e) => {
+          const pre = !counts(e.date);
+          const done = e.status === "DONE";
+          const cls = `min-w-[96px] flex-1 border-r border-b-2 border-r-line px-3 py-2 text-center text-ink hover:text-ink ${e.id === shown?.id ? "border-b-orange bg-surface-2" : "border-b-transparent"}`;
+          return (
+            <Link key={e.id} href={`/rdv?jeu=${game}&mois=${e.month}`} className={cls}>
+              <div className="font-display text-base font-bold first-letter:uppercase">{monthFmt.format(e.date)}</div>
+              <div className="text-[11px] text-silver">{done ? "✓ Terminé" : e.status === "LIVE" ? "● En cours" : e.status === "OPEN" ? "Inscriptions" : ""}</div>
               <div className={`text-[10px] font-bold uppercase tracking-[.06em] ${pre ? "text-grey" : "text-orange"}`}>{pre ? "Pré-saison" : "Saison"}</div>
-            </>
+            </Link>
           );
-          return done ? <Link key={m} href={`/rdv?jeu=${game}&mois=${i}`} className={`${cls} text-ink hover:text-ink`}>{inner}</Link> : <div key={m} className={cls}>{inner}</div>;
         })}
+        {events.length === 0 && <div className="px-4 py-3 text-sm text-grey">Aucun rendez-vous cette saison.</div>}
       </nav>
 
       <section className="card mt-4">
         <div className="card-head">
-          <span className="card-title">Résultats · {EVENT_MONTHS[shownMonth]}{shownMonth < PRESEASON_MONTHS ? " · pré-saison, hors classement général" : ""}</span>
+          <span className="card-title first-letter:uppercase">Résultats{shown ? ` · ${shownLabel}` : ""}{shown && !counts(shown.date) ? " · pré-saison, hors classement général" : ""}{shown?.status === "LIVE" ? " · provisoire" : ""}</span>
           <span className="flex flex-wrap gap-1">
             <Link href={q({ vue: undefined })} className={`btn btn-sm !min-h-8 !px-2.5 ${view < 0 ? "btn-secondary" : "btn-tertiary"}`}>Classement</Link>
-            {[0, 1, 2, 3, 4, 5].map((r) => <Link key={r} href={q({ vue: r })} className={`btn btn-sm !min-h-8 !px-2.5 ${view === r ? "btn-secondary" : "btn-tertiary"}`}>M{r + 1}</Link>)}
+            {[0, 1, 2, 3, 4, 5].filter((r) => res?.publishedRounds.includes(r + 1)).map((r) => <Link key={r} href={q({ vue: r })} className={`btn btn-sm !min-h-8 !px-2.5 ${view === r ? "btn-secondary" : "btn-tertiary"}`}>M{r + 1}</Link>)}
           </span>
         </div>
         <div className="overflow-x-auto">
-          {view < 0 ? (
+          {!res || res.publishedRounds.length === 0 ? (
+            <Empty>{shown ? "Les résultats sont publiés manche par manche par les arbitres, le soir du rendez-vous." : "Aucun résultat cette saison pour le moment."}</Empty>
+          ) : view < 0 || !res.publishedRounds.includes(view + 1) ? (
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="overline !font-normal">
@@ -158,12 +166,12 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
                 </tr>
               </thead>
               <tbody>
-                {standing.slice(0, 16).map((e, i) => (
-                  <tr key={e.name} className="border-t border-surface-2">
+                {standing.slice(0, 32).map((e, i) => (
+                  <tr key={e.id} className="border-t border-surface-2">
                     <td className={`px-3 py-2 font-display font-bold ${i === 0 ? "text-yellow" : ""}`}>{i + 1}</td>
                     <td className="px-3 py-2"><span className="font-semibold">{e.name}</span> <span className="text-xs text-grey">· {e.sub}</span></td>
                     {e.rounds.map((r, k) => (
-                      <td key={k} className={`px-2 py-2 text-center ${r.placement === 1 ? "font-bold text-yellow" : solo && r.placement <= 4 ? "" : "text-grey"}`}>{solo ? ordinal(r.placement) : r.points}</td>
+                      <td key={k} className={`px-2 py-2 text-center ${r?.placement === 1 ? "font-bold text-yellow" : solo && r && r.placement <= 4 ? "" : "text-grey"}`}>{!r ? "—" : solo ? ordinal(r.placement) : r.points}</td>
                     ))}
                     <td className="px-2 py-2 text-center text-silver">{solo ? e.top4 : e.kills}</td>
                     <td className="px-3 py-2 text-right font-display text-lg font-bold">{e.total}</td>
@@ -183,10 +191,10 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
                 </tr>
               </thead>
               <tbody>
-                {[...standing].sort((a, b) => a.rounds[view].placement - b.rounds[view].placement || b.rounds[view].points - a.rounds[view].points).slice(0, solo ? 8 : 10).map((e) => {
-                  const r = e.rounds[view];
+                {standing.filter((e) => e.rounds[view]).sort((a, b) => b.rounds[view]!.points - a.rounds[view]!.points || a.rounds[view]!.placement - b.rounds[view]!.placement).map((e) => {
+                  const r = e.rounds[view]!;
                   return (
-                    <tr key={e.name} className="border-t border-surface-2">
+                    <tr key={e.id} className="border-t border-surface-2">
                       <td className={`px-3 py-2 font-display font-bold ${r.placement === 1 ? "text-yellow" : ""}`}>{ordinal(r.placement)}</td>
                       <td className="px-3 py-2"><span className="font-semibold">{e.name}</span> <span className="text-xs text-grey">· {e.sub}</span></td>
                       <td className="px-3 py-2 text-center text-silver">+{scale.placement[r.placement - 1] ?? 0}</td>
@@ -201,11 +209,10 @@ export default async function RdvPage({ searchParams }: { searchParams: Promise<
         </div>
         <div className="border-t border-line px-[18px] py-2.5 text-xs text-grey">
           {view < 0
-            ? `${solo ? "Place obtenue à chaque manche" : "Points obtenus à chaque manche"}, 16 premiers. Résultats lus automatiquement sur l’écran de fin de partie, puis validés par un arbitre.`
-            : solo ? "Manche jouée en lobbys de 8 : chaque lobby attribue les places 1 à 8. Lobbys recomposés selon le classement cumulé." : "Les 10 premières places de la manche. Placement et kills lus sur l’écran de fin de partie, puis vérifiés par un arbitre."}
+            ? `${solo ? "Place obtenue à chaque manche" : "Points obtenus à chaque manche"}. Départage : nombre de top 4, puis meilleure place. Résultats saisis et publiés par les arbitres.`
+            : solo ? "Manche jouée en lobbys de 8 : chaque lobby attribue les places 1 à 8. Lobbys recomposés selon le classement cumulé." : "Placement et éliminations de la manche, vérifiés par un arbitre."}
         </div>
       </section>
-      <DemoNotice>Les résultats des mois passés sont des exemples. Le prochain rendez-vous et les inscriptions sont réels.</DemoNotice>
     </main>
   );
 }

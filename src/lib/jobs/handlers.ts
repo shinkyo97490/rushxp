@@ -2,6 +2,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import { ensureNextEvent } from "@/lib/events/queries";
 import { dailyRankings } from "@/lib/rankings/engine";
+import { settlePlayoffs } from "@/lib/matches/results";
+import { dailyPlayoffs } from "@/lib/playoffs";
 
 /**
  * Tâches connues. Chaque traitement est idempotent : relancé après un échec, il ne fait rien deux fois.
@@ -22,5 +24,10 @@ export const HANDLERS: Record<string, (payload: Record<string, unknown>) => Prom
   /** Défis : relances, expirations, validations automatiques, appariements de placement, inactivité. */
   "rankings.daily": async () => {
     await dailyRankings();
+    await settlePlayoffs();
+  },
+  /** Seeding figé à la date de référence, puis génération des quarts. */
+  "playoffs.daily": async () => {
+    await dailyPlayoffs();
   },
 };

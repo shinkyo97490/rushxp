@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { EVENT_FORMATS } from "@/lib/data/content";
 import { ensureNextEvent } from "./queries";
+import { lobbyScale } from "./results";
+import { lobbyPoints } from "@/lib/rules/scales";
 
 export type EventResult = { ok: true; message?: string } | { ok: false; errors: Record<string, string> };
 const fail = (m: string): EventResult => ({ ok: false, errors: { _: m } });
@@ -66,4 +68,53 @@ export async function unregisterEventAction(input: { game: LobbyGame; entityId: 
   await db.eventEntry.delete({ where: { id: entry.id } });
   revalidatePath("/rdv");
   return { ok: true, message: "Désinscription enregistrée : la place est libérée." };
+}
+
+// ─── Saisie des résultats (arbitres) ─────────────────────────────
+
+/** Saisie d'une manche : placement et éliminations de chaque inscrit. Publiée = comptée au classement. */
+export async function saveRoundAction(input: { eventId: string; round: number; rows: { entryId: string; placement: number; kills: number }[]; publish: boolean }): Promise<EventResult> {
+  const v = await getViewer();
+  if (!v || (v.role !== "admin" && v.role !== "arbitre")) return fail("Réservé aux arbitres.");
+  const ev = await db.monthlyEvent.findUnique({ where: { id: input.eventId }, include: { entries: { select: { id: true } } } });
+  if (!ev) return fail("Rendez-vous introuvable.");
+  if (ev.status === "DONE") return fail("Rendez-vous clôturé : les résultats sont définitifs.");
+  if (!Number.isInteger(input.round) || input.round < 1 || input.round > 6) return fail("Manche 1 à 6.");
+  const valid = new Set(ev.entries.map((e) => e.id));
+  const rows = input.rows.filter((r) => r.placement > 0);
+  if (rows.some((r) => !valid.has(r.entryId) || !Number.isInteger(r.placement) || r.placement > 100 || !Number.isInteger(r.kills) || r.kills < 0 || r.kills > 60)) return fail("Valeurs invalides.");
+  const lobby = ev.game === "tft" ? 8 : Infinity;
+  if (ev.game !== "tft" && new Set(rows.map((r) => r.placement)).size !== rows.length) return fail("Deux inscrits ont la même place.");
+  if (rows.some((r) => r.placement > lobby)) return fail("En TFT, la place va de 1 à 8 dans chaque lobby.");
+  const scale = await lobbyScale(ev.game as "tft" | "wz" | "apex");
+  const round = await db.eventRound.upsert({
+    where: { eventId_n: { eventId: ev.id, n: input.round } },
+    create: { eventId: ev.id, n: input.round, lobbies: [], status: input.publish ? "PUBLISHED" : "ENTRY" },
+    update: { status: input.publish ? "PUBLISHED" : "ENTRY" },
+  });
+  await db.$transaction([
+    db.eventResult.deleteMany({ where: { roundId: round.id } }),
+    db.eventResult.createMany({ data: rows.map((r) => ({ roundId: round.id, entryId: r.entryId, placement: r.placement, kills: r.kills, points: lobbyPoints(scale, r.placement, r.kills), source: "MANUAL" as const })) }),
+    db.monthlyEvent.update({ where: { id: ev.id }, data: { status: "LIVE" } }),
+    db.auditLog.create({ data: { actorId: v.id, action: input.publish ? "event.round.publish" : "event.round.save", target: `event:${ev.id}:${input.round}`, after: { rows: rows.length } } }),
+  ]);
+  revalidatePath("/rdv");
+  revalidatePath("/admin");
+  revalidatePath("/classement");
+  return { ok: true, message: `Manche ${input.round} ${input.publish ? "publiée" : "enregistrée (brouillon)"} · ${rows.length} résultat(s).` };
+}
+
+/** Clôture : le classement du mois devient définitif et compte au classement général (hors pré-saison). */
+export async function closeEventAction(eventId: string): Promise<EventResult> {
+  const v = await getViewer();
+  if (!v || v.role !== "admin") return fail("Réservé aux administrateurs.");
+  const ev = await db.monthlyEvent.findUnique({ where: { id: eventId }, include: { rounds: true } });
+  if (!ev) return fail("Rendez-vous introuvable.");
+  if (ev.rounds.filter((r) => r.status === "PUBLISHED").length < 1) return fail("Publiez au moins une manche avant de clôturer.");
+  await db.monthlyEvent.update({ where: { id: ev.id }, data: { status: "DONE" } });
+  await db.auditLog.create({ data: { actorId: v.id, action: "event.close", target: `event:${ev.id}` } });
+  revalidatePath("/rdv");
+  revalidatePath("/admin");
+  revalidatePath("/classement");
+  return { ok: true, message: "Rendez-vous clôturé : résultats définitifs." };
 }

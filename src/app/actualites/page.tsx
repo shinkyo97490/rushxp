@@ -4,7 +4,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { getGame } from "@/lib/data/games";
-import { demoMatches } from "@/lib/data/demo-competition";
+import { upcomingItems } from "@/lib/matches/queries";
 import { Empty } from "@/components/PageHeader";
 import { Poll, PostActions, type CommentView } from "@/components/feed/FeedClient";
 
@@ -50,7 +50,7 @@ export default async function ActualitesPage({ searchParams }: { searchParams: P
   const user = (id: string) => users.find((u) => u.id === id);
   const canPublish = viewer?.role === "admin" || viewer?.structure?.status === "VERIFIED";
   const canModerate = viewer?.role === "admin" || viewer?.role === "arbitre";
-  const upcoming = demoMatches().filter((m) => m.state !== "Terminé").slice(0, 4);
+  const upcoming = await upcomingItems(viewer);
 
   const toComments = (p: (typeof posts)[number]): CommentView[] => {
     const view = (c: (typeof p.comments)[number]): CommentView => ({
@@ -176,14 +176,15 @@ export default async function ActualitesPage({ searchParams }: { searchParams: P
       <aside className="grid gap-4 lg:sticky lg:top-[88px]">
         <section className="card">
           <div className="card-head"><span className="card-title">À venir</span><Link href="/calendrier" className="text-xs font-semibold">Calendrier →</Link></div>
+          {upcoming.length === 0 && <p className="px-[18px] py-3 text-[13px] text-grey">Aucun match programmé.</p>}
           {upcoming.map((m) => {
             const g = getGame(m.game);
             return (
-              <Link key={m.id} href={`/match?m=${m.id}`} className="list-row flex items-center gap-2.5 text-ink hover:text-ink">
+              <Link key={m.id} href={m.href} className="list-row flex items-center gap-2.5 text-ink hover:text-ink">
                 {g && <Image src={g.logo} alt="" width={26} height={16} className="h-4 w-[26px] object-contain" />}
                 <span className="min-w-0 text-[13px]">
                   <span className="block truncate font-semibold">{m.a} vs {m.b}</span>
-                  <span className="block text-xs text-grey">{new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(m.when)}</span>
+                  <span className="block text-xs text-grey">{new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(m.when)}</span>
                 </span>
               </Link>
             );

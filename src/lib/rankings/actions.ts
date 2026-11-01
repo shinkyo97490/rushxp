@@ -6,9 +6,9 @@ import { getViewer } from "@/lib/auth/viewer";
 import { getGame, isSolo } from "@/lib/data/games";
 import { MAX_PENDING_OUT, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY, challengeBlock, ineligibilityLabel } from "@/lib/rules/challenge";
 import { START_SCORE, stakes } from "@/lib/rules/elo";
-import { seriesScores } from "@/lib/rules/rankings";
 import { eligibility } from "@/lib/rankings-model";
-import { applyResult, entityName, notifyEntity, recipients, settleDue } from "./engine";
+import { entityName, notifyEntity, recipients, settleDue } from "./engine";
+import { answerMatchResult, declareMatchResult } from "@/lib/matches/results";
 import { challengeItems, myEntities, rankingRows } from "./queries";
 
 export type RankResult = { ok: true; message?: string } | { ok: false; errors: Record<string, string> };
@@ -141,24 +141,9 @@ export async function declareResultAction(input: { id: string; won: boolean; sco
   if (!v) return fail("Session expirée.");
   const c = await loadChallenge(input.id);
   if (!c?.match) return fail("Match introuvable.");
-  const side = (await canActFor(c.game, c.match.a, v.id)) ? "a" : (await canActFor(c.game, c.match.b, v.id)) ? "b" : null;
-  if (!side) return fail("Seul le capitaine, un gestionnaire ou le joueur concerné déclare le résultat.");
-  if (c.status !== "PLANNED") return fail("Le résultat a déjà été déclaré.");
-  if (c.match.scheduledAt > new Date()) return fail("Le résultat se déclare après l’heure du match.");
-  const [w, l] = input.score;
-  if (!seriesScores(c.match.series).some(([x, y]) => x === w && y === l)) return fail("Score impossible pour ce format.");
-  const aWon = side === "a" ? input.won : !input.won;
-  await db.$transaction(async (tx) => {
-    const ok = await tx.challenge.updateMany({ where: { id: c.id, status: "PLANNED" }, data: { status: "SUBMITTED" } });
-    if (!ok.count) throw new Error("déjà déclaré");
-    await tx.match.update({ where: { id: c.match!.id }, data: { status: "SUBMITTED" } });
-    await tx.resultSubmission.create({ data: { matchId: c.match!.id, uploaderId: v.id, fileUrl: "", declaredA: aWon ? w : l, declaredB: aWon ? l : w, status: "AWAITING_OPPONENT" } });
-  });
-  const mineId = side === "a" ? c.match.a : c.match.b;
-  const oppId = side === "a" ? c.match.b : c.match.a;
-  await notifyEntity(c.game, oppId, `${await entityName(c.game, mineId)} déclare ${input.won ? "une victoire" : "une défaite"} ${w}–${l}. Confirmez ou contestez sous 24 h.`, `/rankings/defis?game=${c.game}`);
-  refresh(c.game);
-  return { ok: true, message: "Résultat déclaré : provisoire jusqu’à confirmation adverse (validation automatique sous 24 h)." };
+  const r = await declareMatchResult(v.id, c.match.id, input.won, input.score);
+  if (r.ok) refresh(c.game);
+  return r;
 }
 
 /** L'adversaire confirme (classement recalculé) ou conteste (arbitre). */
@@ -166,27 +151,11 @@ export async function answerResultAction(input: { id: string; confirm: boolean; 
   const v = await getViewer();
   if (!v) return fail("Session expirée.");
   const c = await loadChallenge(input.id);
-  const sub = c?.match?.submissions[0];
-  if (!c?.match || c.status !== "SUBMITTED" || !sub || sub.status !== "AWAITING_OPPONENT") return fail("Aucun résultat à confirmer.");
-  const declaredBy = (await canActFor(c.game, c.match.a, sub.uploaderId)) ? c.match.a : c.match.b;
-  const other = declaredBy === c.match.a ? c.match.b : c.match.a;
-  if (!(await canActFor(c.game, other, v.id))) return fail("Seul l’adversaire confirme ou conteste le résultat.");
-  if (input.confirm) {
-    const aWon = sub.declaredA! > sub.declaredB!;
-    await applyResult(c.id, aWon ? c.match.a : c.match.b, Math.max(sub.declaredA!, sub.declaredB!), Math.min(sub.declaredA!, sub.declaredB!), "confirmed");
+  if (!c?.match) return fail("Aucun résultat à confirmer.");
+  const r = await answerMatchResult(v.id, c.match.id, input.confirm, input.reason);
+  if (r.ok) {
     refresh(c.game);
-    return { ok: true, message: "Résultat confirmé : classement recalculé." };
+    revalidatePath("/arbitrage");
   }
-  const reason = (input.reason ?? "").trim();
-  if (reason.length < 5) return { ok: false, errors: { reason: "Expliquez la contestation (5 caractères minimum)." } };
-  await db.$transaction([
-    db.challenge.update({ where: { id: c.id }, data: { status: "DISPUTED" } }),
-    db.match.update({ where: { id: c.match.id }, data: { status: "DISPUTED" } }),
-    db.resultSubmission.update({ where: { id: sub.id }, data: { status: "REFEREE_REVIEW" } }),
-    db.dispute.create({ data: { submissionId: sub.id, openedById: v.id, reason: reason.slice(0, 500) } }),
-  ]);
-  await notifyEntity(c.game, declaredBy, `Résultat contesté par ${await entityName(c.game, other)} : un arbitre va trancher.`, `/rankings/defis?game=${c.game}`);
-  refresh(c.game);
-  revalidatePath("/arbitrage");
-  return { ok: true, message: "Contestation envoyée : le résultat est suspendu jusqu’à la décision d’un arbitre." };
+  return r;
 }

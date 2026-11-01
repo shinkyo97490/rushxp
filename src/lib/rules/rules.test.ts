@@ -260,3 +260,82 @@ describe("résultats et inactivité", () => {
     expect(seriesScores(null)).toEqual([[1, 0]]);
   });
 });
+
+import { applyVeto, availableMaps, DEFAULT_POOLS, nextStep, playedMaps, validatePool, type VetoStep } from "./veto";
+
+describe("veto et map pool", () => {
+  it("Valorant BO3 : ban, ban, pick, pick, ban, ban, décisive automatique", () => {
+    let steps: VetoStep[] = [];
+    const seq: ["A" | "B", string][] = [["A", "Ascent"], ["B", "Bind"], ["A", "Haven"], ["B", "Lotus"], ["A", "Split"], ["B", "Sunset"]];
+    for (const [actor, map] of seq) {
+      const r = applyVeto("val", DEFAULT_POOLS.val, steps, actor, map);
+      if ("error" in r) throw new Error(r.error);
+      steps = r.steps;
+    }
+    expect(steps).toHaveLength(7);
+    expect(playedMaps(steps).map((s) => s.map)).toEqual(["Haven", "Lotus", "Pearl"]);
+    expect(nextStep("val", steps)).toBeNull();
+  });
+  it("refuse le mauvais tour et une carte déjà utilisée", () => {
+    expect(applyVeto("val", DEFAULT_POOLS.val, [], "B", "Ascent")).toEqual({ error: "Ce n’est pas votre tour." });
+    const r = applyVeto("val", DEFAULT_POOLS.val, [], "A", "Ascent") as { steps: VetoStep[] };
+    expect(applyVeto("val", DEFAULT_POOLS.val, r.steps, "B", "Ascent")).toEqual({ error: "Carte indisponible." });
+  });
+  it("CDL : par mode, une carte choisie ne revient pas dans le même mode", () => {
+    let steps: VetoStep[] = [];
+    for (const [actor, map] of [["A", "Hacienda"], ["B", "Protocol"]] as const) steps = (applyVeto("cod", DEFAULT_POOLS.cod, steps, actor, map) as { steps: VetoStep[] }).steps;
+    // carte 4 = HP à nouveau : Protocol (déjà jouée en HP) exclue
+    const s4 = [...steps];
+    for (const [actor, map] of [["B", "Dealership"], ["A", "Hacienda"], ["A", "Protocol"], ["B", "Hacienda"]] as const) {
+      const r = applyVeto("cod", DEFAULT_POOLS.cod, s4, actor, map);
+      if ("error" in r) throw new Error(r.error);
+      s4.splice(0, s4.length, ...r.steps);
+    }
+    expect(availableMaps("cod", DEFAULT_POOLS.cod, s4)).not.toContain("Protocol");
+  });
+  it("taille du pool par jeu", () => {
+    expect(validatePool("val", DEFAULT_POOLS.val)).toBeNull();
+    expect(validatePool("val", DEFAULT_POOLS.val.slice(0, 6))).toMatch(/7 cartes/);
+    expect(validatePool("cod", DEFAULT_POOLS.cod)).toBeNull();
+  });
+});
+
+import { nextRound, qualifiers, quarterFinals } from "./playoffs";
+
+describe("Playoffs", () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ({ id: `e${i + 1}`, name: `Équipe ${i + 1}`, score: 1500 - i * 10, inPlacement: i === 2 }));
+  it("8 qualifiés hors placement, dans l'ordre", () => {
+    const q = qualifiers(rows);
+    expect(q).toHaveLength(8);
+    expect(q.map((s) => s.entityId)).toEqual(["e1", "e2", "e4", "e5", "e6", "e7", "e8", "e9"]);
+  });
+  it("quarts 1-8, 4-5, 2-7, 3-6 puis demi-finales croisées", () => {
+    const qf = quarterFinals(qualifiers(rows));
+    expect(qf.map((m) => [m.a?.seed, m.b?.seed])).toEqual([[1, 8], [4, 5], [2, 7], [3, 6]]);
+    expect(nextRound("QF2")?.round).toBe("SF1");
+    expect(nextRound("QF3")?.from).toEqual(["QF3", "QF4"]);
+    expect(nextRound("SF2")?.round).toBe("F");
+    expect(nextRound("F")).toBeNull();
+  });
+});
+
+import { eventStandingsFrom, tftLobbies } from "./scales";
+
+describe("RDV mensuels", () => {
+  it("total, puis top 4, puis meilleure place", () => {
+    const e = [{ id: "a", name: "A", sub: "" }, { id: "b", name: "B", sub: "" }, { id: "c", name: "C", sub: "" }];
+    const r = [
+      { entryId: "a", round: 1, placement: 1, kills: 0, points: 8 },
+      { entryId: "b", round: 1, placement: 2, kills: 0, points: 7 },
+      { entryId: "a", round: 2, placement: 8, kills: 0, points: 1 },
+      { entryId: "b", round: 2, placement: 3, kills: 0, points: 6 },
+      { entryId: "c", round: 1, placement: 4, kills: 0, points: 5 },
+    ];
+    const s = eventStandingsFrom(e, r);
+    expect(s.map((x) => [x.id, x.total])).toEqual([["b", 13], ["a", 9], ["c", 5]]);
+    expect(s[1].rounds.map((x) => x?.placement ?? null)).toEqual([1, 8, null, null, null, null]);
+  });
+  it("lobbys TFT de 8 selon le classement", () => {
+    expect(tftLobbies(Array.from({ length: 19 }, (_, i) => i)).map((l) => l.length)).toEqual([8, 8, 3]);
+  });
+});

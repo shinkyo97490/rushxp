@@ -4,8 +4,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
-import { GAMES, getGame } from "@/lib/data/games";
-import { DEMO_CAMPAIGNS, DEMO_RESULTS, RESULT_STATUS } from "@/lib/data/demo-competition";
+import { CHALLENGE_GAMES, GAMES, getGame } from "@/lib/data/games";
+import { DEMO_CAMPAIGNS } from "@/lib/data/demo-competition";
+import { namesFor } from "@/lib/matches/queries";
 import { K_DEFAULT, K_PLACEMENT, PLACEMENT_MATCHES, START_SCORE } from "@/lib/rules/elo";
 import { MAX_PENDING_OUT, PAIR_MAX_COUNTED, PAIR_WINDOW_DAYS, REMATCH_DAYS, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
 import { MAX_SUBS } from "@/lib/rules/roster";
@@ -16,18 +17,24 @@ import { integrationStatus } from "@/lib/integrations";
 import { LanEditor, LanResultsEditor, ValidateLanResults, type LanForm } from "@/components/admin/LanAdmin";
 import { euros, getLan, LAN_STATUS, lanDates, listLans, programToText } from "@/lib/lan/queries";
 import { Badge } from "@/components/ui";
+import { getPlayoffs } from "@/lib/playoffs";
+import { getSeason } from "@/lib/season";
+import { MatchDate, PlayoffsGameActions } from "@/components/admin/PlayoffsAdmin";
+import { RoundEntry } from "@/components/admin/RdvAdmin";
+import { eventResults } from "@/lib/events/results";
+import { tftLobbies } from "@/lib/rules/scales";
 import { AdModeration, BroadcastForm, GameFormatForm, LiftSanction, SanctionForm, StructureReview, UserControls } from "@/components/admin/AdminClient";
 
 export const metadata: Metadata = { title: "Administration" };
 
 const NAV: { group: string; items: [string, string][] }[] = [
   { group: "Pilotage", items: [["dashboard", "Tableau de bord"]] },
-  { group: "Compétition", items: [["lan", "LAN"], ["results", "Résultats"], ["sanctions", "Sanctions"], ["formats", "Formats & barèmes"], ["rankcfg", "Paramètres Rankings"]] },
+  { group: "Compétition", items: [["rdv", "RDV mensuels"], ["playoffs", "Playoffs"], ["lan", "LAN"], ["results", "Résultats"], ["sanctions", "Sanctions"], ["formats", "Formats & barèmes"], ["rankcfg", "Paramètres Rankings"]] },
   { group: "Communauté", items: [["structs", "Structures"], ["users", "Utilisateurs"], ["ads", "Annonces"], ["posts", "Publications"], ["notifs", "Notifications"]] },
   { group: "Commercial", items: [["leads", "Demandes partenaires"], ["campaigns", "Publicités"]] },
   { group: "Système", items: [["audit", "Journal d’audit"]] },
 ];
-const REFEREE_OK = ["dashboard", "lan", "results", "sanctions"];
+const REFEREE_OK = ["dashboard", "rdv", "lan", "results", "sanctions"];
 
 const fmt = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(d);
 
@@ -96,6 +103,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {sec === "rankcfg" && <RankConfig />}
           {sec === "results" && <Results />}
           {sec === "lan" && <LanSection id={sp.id} isAdmin={isAdmin} />}
+          {sec === "playoffs" && <PlayoffsSection />}
+          {sec === "rdv" && <RdvSection id={sp.id} isAdmin={isAdmin} />}
           {sec === "leads" && <Leads />}
           {sec === "campaigns" && <Campaigns />}
           {sec === "audit" && <Audit />}
@@ -410,31 +419,50 @@ function RankConfig() {
   );
 }
 
-function Results() {
+const SUB_STATUS: Record<string, [string, string]> = {
+  AWAITING_OPPONENT: ["Confirmation attendue", "text-silver"],
+  REFEREE_REVIEW: ["Contesté · arbitre", "text-red"],
+  AUTO_VALIDATED: ["Validé auto (24 h)", "text-ink"],
+  VALIDATED: ["Validé", "text-grey"],
+  REJECTED: ["Rejeté", "text-grey"],
+};
+
+async function Results() {
+  const subs = await db.resultSubmission.findMany({
+    where: { matchId: { not: null } },
+    include: { match: true, uploader: { select: { pseudo: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 60,
+  });
+  const names = await namesFor(subs.map((x) => x.match!));
   return (
     <section className="card overflow-x-auto">
-      <div className="card-head"><span className="card-title">Résultats soumis</span><DemoTag /></div>
-      <div className="min-w-[760px]">
-        <div className="grid grid-cols-[40px_80px_minmax(0,1fr)_150px_70px_130px_170px] gap-3 border-b border-line px-[18px] py-2.5 overline !font-normal">
-          <span /><span>ID</span><span>Match</span><span>Compétition</span><span>Score</span><span>Source</span><span>Statut</span>
+      <div className="card-head"><span className="card-title">Résultats soumis</span><span className="card-meta">{subs.length} récent(s)</span></div>
+      {subs.length === 0 ? (
+        <Empty>Aucun résultat déclaré pour le moment.</Empty>
+      ) : (
+        <div className="min-w-[760px]">
+          <div className="grid grid-cols-[40px_minmax(0,1fr)_120px_70px_120px_170px] gap-3 border-b border-line px-[18px] py-2.5 overline !font-normal">
+            <span /><span>Match</span><span>Déclaré par</span><span>Score</span><span>Date</span><span>Statut</span>
+          </div>
+          {subs.map((r) => {
+            const m = r.match!;
+            const g = getGame(m.game);
+            const [l, c] = SUB_STATUS[r.status] ?? [r.status, "text-grey"];
+            return (
+              <Link key={r.id} href={`/match?m=${m.id}`} className="grid grid-cols-[40px_minmax(0,1fr)_120px_70px_120px_170px] items-center gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm text-ink hover:bg-surface-2 hover:text-ink">
+                {g ? <Image src={g.logo} alt={g.name} width={28} height={18} className="h-[18px] w-7 object-contain" /> : <span />}
+                <span className="truncate">{names.get(m.a)?.name ?? "?"} vs {names.get(m.b)?.name ?? "?"}</span>
+                <span className="truncate text-xs text-grey">{r.uploader.pseudo}</span>
+                <span className="font-display text-lg font-bold">{r.declaredA ?? "?"}–{r.declaredB ?? "?"}</span>
+                <span className="text-xs text-grey">{fmt(r.createdAt)}</span>
+                <span className={`text-xs font-bold ${c}`}>● {l}</span>
+              </Link>
+            );
+          })}
         </div>
-        {DEMO_RESULTS.map((r) => {
-          const g = getGame(r.game);
-          const [l, c] = RESULT_STATUS[r.st];
-          return (
-            <div key={r.id} className="grid grid-cols-[40px_80px_minmax(0,1fr)_150px_70px_130px_170px] items-center gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm">
-              {g ? <Image src={g.logo} alt={g.name} width={28} height={18} className="h-[18px] w-7 object-contain" /> : <span />}
-              <span className="font-mono text-xs">{r.id}</span>
-              <span className="truncate">{r.match}</span>
-              <span className="text-xs text-grey">{r.comp}</span>
-              <span className="font-display text-lg font-bold">{r.score}</span>
-              <span className="text-xs text-grey">{r.src}</span>
-              <span className={`text-xs font-bold ${c}`}>● {l}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="px-[18px] py-3 text-xs text-grey">La validation des résultats passera par la table ResultSubmission avec la lecture OCR. Les contestations se traitent dans l’espace arbitre.</div>
+      )}
+      <div className="px-[18px] py-3 text-xs text-grey">Un résultat devient officiel à la confirmation adverse, après 24 h sans réponse, ou sur décision d’arbitre. Les contestations se traitent dans l’<Link href="/arbitrage">espace arbitre</Link>.</div>
     </section>
   );
 }
@@ -600,5 +628,86 @@ async function LanSection({ id, isAdmin }: { id?: string; isAdmin: boolean }) {
         </div>
       )}
     </section>
+  );
+}
+
+// ─── Playoffs ────────────────────────────────────────────────────
+
+async function PlayoffsSection() {
+  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(new Date()));
+  const season = await getSeason(year);
+  const games = await Promise.all(CHALLENGE_GAMES.map(async (g) => ({ g, p: await getPlayoffs(g.id, year) })));
+  return (
+    <div className="grid gap-4">
+      <p className="max-w-3xl text-sm text-silver">
+        Le seeding se fige automatiquement le {new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Indian/Reunion" }).format(season.seedingAt)} (tâche quotidienne, jusqu’à 7 jours après), puis les quarts sont générés. En dehors de cette fenêtre, figez-le ici. Un seeding figé est immuable.
+      </p>
+      {games.map(({ g, p }) => {
+        const all = [...p.qf, ...p.sf, ...p.fi].filter((m) => m.id);
+        return (
+          <section key={g.id} className="card">
+            <div className="card-head">
+              <span className="card-title">{g.name}</span>
+              <span className="card-meta">{p.frozen ? `Figé · ${p.seeds.length} qualifiés` : `Aperçu · ${p.seeds.length} qualifiable(s)`}</span>
+            </div>
+            <div className="grid gap-3 px-[18px] py-3.5">
+              <PlayoffsGameActions game={g.id} frozen={!!p.frozen} generated={all.length > 0} />
+              {all.map((m) => (
+                <div key={m.round} className="flex flex-wrap items-center justify-between gap-2 border-t border-surface-2 pt-2.5 text-sm">
+                  <span><strong>{m.label}</strong> · {m.sides[0].name} vs {m.sides[1].name} <span className="text-xs text-grey">· {m.state}</span></span>
+                  {m.state === "Programmé" && m.when ? <MatchDate matchId={m.id!} label={m.label} value={reunionInput(new Date(m.when))} /> : <Link href={`/match?m=${m.id}`} className="text-[13px]">Match Center →</Link>}
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── RDV mensuels : saisie des résultats ─────────────────────────
+
+async function RdvSection({ id, isAdmin }: { id?: string; isAdmin: boolean }) {
+  const events = await db.monthlyEvent.findMany({ orderBy: { date: "desc" }, take: 30, include: { _count: { select: { entries: true } } } });
+  const cur = events.find((e) => e.id === id) ?? events.find((e) => e.status === "LIVE") ?? events.find((e) => e.date <= new Date() && e.status !== "DONE") ?? events[0];
+  const res = cur ? await eventResults(cur.id) : null;
+  const rounds: Record<number, Record<string, { placement: number; kills: number }>> = {};
+  for (const r of res?.allRounds ?? []) rounds[r.n] = Object.fromEntries(r.results.map((x) => [x.entryId, { placement: x.placement, kills: x.kills }]));
+  const label = (e: (typeof events)[number]) => `${getGame(e.game)?.short ?? e.game} · ${new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "Indian/Reunion" }).format(e.date)}`;
+  return (
+    <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
+      <section className="card content-start">
+        <div className="card-head"><span className="card-title">Rendez-vous</span></div>
+        {events.length === 0 && <Empty>Aucun RDV.</Empty>}
+        {events.map((e) => (
+          <Link key={e.id} href={`/admin?s=rdv&id=${e.id}`} aria-current={e.id === cur?.id ? "page" : undefined} className={`flex justify-between gap-2 border-b border-surface-2 px-[18px] py-2.5 text-sm text-ink hover:bg-surface-2 hover:text-ink ${e.id === cur?.id ? "border-l-[3px] border-l-orange bg-surface-2" : ""}`}>
+            <span className="first-letter:uppercase">{label(e)}</span>
+            <span className="text-xs text-grey">{e._count.entries} · {e.status === "DONE" ? "clôturé" : e.status === "LIVE" ? "en cours" : e.status === "OPEN" ? "ouvert" : e.status.toLowerCase()}</span>
+          </Link>
+        ))}
+      </section>
+      {cur && res && (
+        <section className="card">
+          <div className="card-head"><span className="card-title first-letter:uppercase">{label(cur)}</span><Link href={`/rdv?jeu=${cur.game}&mois=${cur.month}`} className="text-[13px]">Page publique →</Link></div>
+          <div className="px-[18px] py-3.5">
+            {cur.status === "DONE" ? (
+              <p className="text-sm text-grey">Rendez-vous clôturé : résultats définitifs.</p>
+            ) : (
+              <RoundEntry
+                eventId={cur.id}
+                solo={res.solo}
+                kills={cur.game !== "tft"}
+                entries={res.entries}
+                rounds={rounds}
+                published={res.publishedRounds}
+                lobbies={cur.game === "tft" ? tftLobbies(res.standing.map((s) => s.id)) : null}
+                canClose={isAdmin}
+              />
+            )}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
