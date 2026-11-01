@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useChallenges } from "@/lib/client/challenge-store";
-import { DEMO_SLOTS, type ChallengeItem } from "@/lib/data/challenges";
-import type { RankingRow } from "@/lib/data/repo";
-import { eloDelta, formatDelta, kFactor } from "@/lib/rules/elo";
+import { formatDelta, kFactor } from "@/lib/rules/elo";
 import { UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
 import type { Role } from "@/lib/session-shared";
-import { eligibility, fmtScore, liveRows, ordinal, zoneText, type Eligibility } from "@/lib/rankings-model";
+import { eligibility, fmtScore, ordinal, zoneText, type ChallengeItem, type Eligibility, type RankingRow } from "@/lib/rankings-model";
+import {
+  answerResultAction,
+  cancelChallengeAction,
+  declareResultAction,
+  enterRankingsAction,
+  respondChallengeAction,
+  sendChallengeAction,
+  type RankResult,
+} from "@/lib/rankings/actions";
 import { ConfirmDialog, type ConfirmRequest } from "@/components/ConfirmDialog";
+import { Modal } from "@/components/ui/interactive";
+import { FormError } from "@/components/forms";
 
 export type RankingsTab = "table" | "defis" | "divisions" | "seeding";
 
@@ -27,7 +35,8 @@ interface Props {
   role: Role;
   canAct: boolean;
   rows: RankingRow[];
-  initial: ChallengeItem[];
+  challenges: ChallengeItem[];
+  enterable: { id: string; label: string }[];
   generalRank: { label: string; structure: string } | null;
 }
 
@@ -55,99 +64,240 @@ const STATUS: Record<string, [string, string]> = {
 
 const FINISHED = new Set(["DONE", "REFUSED", "EXPIRED", "CANCELLED", "FORFEIT"]);
 
-export function RankingsClient({ tab, game, role, canAct, rows, initial, generalRank }: Props) {
+/** Valeur d'un champ datetime-local (heure de La Réunion) pour J+n à 20:00. */
+function slotDefault(days: number) {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion" }).format(new Date(Date.now() + days * 86_400_000));
+  return `${day}T20:00`;
+}
+
+type Dialog =
+  | { kind: "send"; opp: RankingRow }
+  | { kind: "declare"; c: ChallengeItem }
+  | { kind: "refuse"; c: ChallengeItem }
+  | { kind: "contest"; c: ChallengeItem }
+  | null;
+
+export function RankingsClient({ tab, game, role, canAct, rows, challenges: list, enterable, generalRank }: Props) {
   const router = useRouter();
-  const { list, update, reset } = useChallenges(game.id, initial);
-  const live = useMemo(() => liveRows(rows, list), [rows, list]);
-  const el = useMemo(() => eligibility(live, list, canAct, game.solo), [live, list, canAct, game.solo]);
-  const me = live.find((r) => r.isMe)!;
+  const me = rows.find((r) => r.isMe) ?? null;
+  const el = useMemo(() => (me ? eligibility(rows, list, canAct, game.solo) : null), [me, rows, list, canAct, game.solo]);
   const [confirm, setConfirm] = useState<ConfirmRequest | null>(null);
-  const [last, setLast] = useState<{ title: string; pts: number; ranks: string } | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [flash, setFlash] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, start] = useTransition();
   const q = `?game=${game.id}`;
 
-  const byId = useMemo(() => new Map(live.map((r) => [r.id, r])), [live]);
+  const byId = useMemo(() => new Map(rows.map((r) => [r.id, r])), [rows]);
   const label = (r: RankingRow) => (game.solo ? r.name : r.team ? `${r.name} · ${r.team}` : r.name);
-  const visitorWhy = (id: string) => (role === "visiteur" && el.block(id) === "role" ? "Connectez-vous pour défier." : el.why(id));
+  const why = (id: string): string | null => {
+    if (role === "visiteur") return id === me?.id ? null : "Connectez-vous pour défier.";
+    if (!el) return enterable.length ? "Inscrivez-vous au classement pour défier." : game.solo ? "Inscrivez-vous au classement pour défier." : "Seul le capitaine ou le gestionnaire d’une équipe inscrite peut défier.";
+    return el.why(id);
+  };
+  const blocked = (id: string) => !el || !!el.block(id);
+
+  /** Exécute une action serveur, affiche son message et recharge les données. */
+  const run = (p: () => Promise<RankResult>, after?: () => void) =>
+    start(async () => {
+      const r = await p();
+      setFlash(r.ok ? { ok: true, text: r.message ?? "Enregistré." } : { ok: false, text: Object.values(r.errors)[0] ?? "Action impossible." });
+      if (r.ok) {
+        after?.();
+        router.refresh();
+      }
+    });
 
   const send = (oppId: string) => {
     if (role === "visiteur") return router.push("/connexion");
-    if (el.block(oppId)) return;
-    update((l) => [
-      { id: "n" + Date.now(), dir: "out", oppId, status: "PENDING", origin: "manual", meta: "Envoyé à l’instant · 3 créneaux proposés · réponse sous 48 h", slots: DEMO_SLOTS },
-      ...l,
-    ]);
-    if (tab !== "defis") router.push(`/rankings/defis${q}`);
-  };
-  const patch = (id: string, p: Partial<ChallengeItem>) => update((l) => l.map((c) => (c.id === id ? { ...c, ...p } : c)));
-
-  const validate = (c: ChallengeItem) => {
-    const opp = byId.get(c.oppId);
-    if (!opp || c.declared == null) return;
-    const res = c.declared;
-    const dMe = eloDelta(me, opp, res);
-    const dOpp = eloDelta(opp, me, res === 1 ? 0 : 1);
-    const before = me.rank;
-    const after = liveRows(rows, list.map((x) => (x.id === c.id ? { ...x, deltaMe: dMe, deltaOpp: dOpp } : x))).find((r) => r.isMe)!.rank;
-    patch(c.id, {
-      status: "DONE",
-      deltaMe: dMe,
-      deltaOpp: dOpp,
-      playedAt: new Date().toISOString(),
-      meta: "Confirmé par l’adversaire · validé automatiquement · classement recalculé",
-      result: `${res ? "Victoire" : "Défaite"} · ${formatDelta(dMe)} pts · ${ordinal(before)} → ${ordinal(after)}`,
-    });
-    setLast({ title: `${me.name} vs ${opp.name}`, pts: dMe, ranks: `${ordinal(before)} → ${ordinal(after)}` });
+    const opp = byId.get(oppId);
+    if (!opp || blocked(oppId)) return;
+    setDialog({ kind: "send", opp });
   };
 
   return (
     <>
-      <Kpis me={me} participants={live.length} placement={live.filter((r) => r.inPlacement).length} received={el.received} general={generalRank} role={role} />
+      <Kpis me={me} participants={rows.length} placement={rows.filter((r) => r.inPlacement).length} received={el?.received ?? 0} general={generalRank} role={role} />
+
+      {flash && (
+        <div role="status" className={`mt-3 border px-4 py-2.5 text-sm ${flash.ok ? "border-orange bg-active-tint" : "border-red text-red"}`}>
+          {flash.ok ? "✓ " : ""}{flash.text}
+        </div>
+      )}
+
+      {!me && role !== "visiteur" && enterable.length > 0 && (
+        <EnterCard game={game} options={enterable} pending={pending} onEnter={(entityId) => run(() => enterRankingsAction({ game: game.id, entityId }))} />
+      )}
 
       <div className="mt-4 flex overflow-x-auto border-b border-line" role="tablist">
         {(Object.keys(TAB_PATH) as RankingsTab[]).map((k) => (
           <Link key={k} href={TAB_PATH[k][1] + q} className="tab" aria-current={k === tab ? "page" : undefined}>
             {TAB_PATH[k][0]}
-            {k === "defis" && el.received > 0 && role !== "visiteur" && (
-              <span className="grid h-[18px] min-w-[18px] place-items-center bg-orange px-1 font-sans text-[11px] text-bg">{el.received}</span>
+            {k === "defis" && (el?.received ?? 0) > 0 && (
+              <span className="grid h-[18px] min-w-[18px] place-items-center bg-orange px-1 font-sans text-[11px] text-bg">{el!.received}</span>
             )}
           </Link>
         ))}
       </div>
 
-      {tab === "table" && <RankingTable rows={live} el={el} game={game} label={label} send={send} why={visitorWhy} role={role} />}
-      {tab === "defis" && (
-        <ChallengeCenter
-          game={game}
-          role={role}
-          me={me}
-          list={list}
-          byId={byId}
-          el={el}
-          last={last}
-          send={send}
-          patch={patch}
-          validate={validate}
-          ask={setConfirm}
-          reset={() => {
-            reset();
-            setLast(null);
-          }}
-          rows={live}
-        />
+      {rows.length === 0 ? (
+        <div className="card mt-4 px-[18px] py-8 text-center text-silver">
+          Aucun{game.solo ? " joueur" : "e équipe"} classé{game.solo ? "" : "e"} en {game.name} pour le moment.{" "}
+          {role === "visiteur" ? <Link href="/connexion">Connectez-vous</Link> : enterable.length ? "Inscrivez-vous ci-dessus pour être le premier." : game.solo ? "" : <Link href="/recrutement">Créez ou rejoignez une équipe →</Link>}
+        </div>
+      ) : (
+        <>
+          {tab === "table" && <RankingTable rows={rows} el={el} me={me} game={game} label={label} send={send} why={why} blocked={blocked} role={role} />}
+          {tab === "defis" &&
+            (me && el ? (
+              <ChallengeCenter
+                game={game}
+                me={me}
+                list={list}
+                byId={byId}
+                el={el}
+                pending={pending}
+                send={send}
+                rows={rows}
+                act={{
+                  accept: (c, slot) => run(() => respondChallengeAction({ id: c.id, slot })),
+                  refuse: (c) => setDialog({ kind: "refuse", c }),
+                  refuseUnjustified: (c) =>
+                    setConfirm({
+                      title: "Refuser sans motif admis ?",
+                      text: `Ce défi est valide. Un refus injustifié entraîne un forfait et une pénalité de ${UNJUSTIFIED_REFUSAL_PENALTY} points, inscrite à votre historique. Un appel reste possible.`,
+                      confirm: "Refuser quand même",
+                      danger: true,
+                      run: () => run(() => respondChallengeAction({ id: c.id, refuse: "unjustified" })),
+                    }),
+                  cancel: (c) => run(() => cancelChallengeAction(c.id)),
+                  declare: (c) => setDialog({ kind: "declare", c }),
+                  confirmResult: (c) => run(() => answerResultAction({ id: c.id, confirm: true })),
+                  contest: (c) => setDialog({ kind: "contest", c }),
+                }}
+              />
+            ) : (
+              <div className="card mt-4 px-[18px] py-6 text-sm text-silver">
+                {role === "visiteur" ? <>Connectez-vous pour accéder au Centre des défis. <Link href="/connexion">Se connecter →</Link></> : "Le Centre des défis s’ouvre dès que vous êtes inscrit au classement de ce jeu."}
+              </div>
+            ))}
+          {tab === "divisions" && <Divisions rows={rows} solo={game.solo} />}
+          {tab === "seeding" && <Seeding rows={rows} game={game} />}
+        </>
       )}
-      {tab === "divisions" && <Divisions rows={live} solo={game.solo} />}
-      {tab === "seeding" && <Seeding rows={rows} game={game} />}
 
       <ConfirmDialog req={confirm} onClose={() => setConfirm(null)} />
+      <ActionDialog gameId={game.id} dialog={dialog} close={() => setDialog(null)} pending={pending} el={el} byId={byId} run={run} />
     </>
   );
 }
 
-function Kpis({ me, participants, placement, received, general, role }: { me: RankingRow; participants: number; placement: number; received: number; general: Props["generalRank"]; role: Role }) {
-  const member = role !== "visiteur";
+function EnterCard({ game, options, pending, onEnter }: { game: GameInfo; options: { id: string; label: string }[]; pending: boolean; onEnter: (id: string) => void }) {
+  const [id, setId] = useState(options[0].id);
+  return (
+    <section className="card mt-4 border-t-2 !border-t-orange">
+      <div className="card-head"><span className="card-title">Entrer au classement {game.name}</span><span className="card-meta">800 pts · 5 matchs de placement à K = 40</span></div>
+      <div className="flex flex-wrap items-center gap-2 px-[18px] py-3.5">
+        {options.length > 1 ? (
+          <select className="field" aria-label="Équipe à inscrire" value={id} onChange={(e) => setId(e.target.value)}>
+            {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          </select>
+        ) : (
+          <span className="font-semibold">{options[0].label}</span>
+        )}
+        <button className="btn btn-primary btn-sm" disabled={pending} aria-busy={pending || undefined} onClick={() => onEnter(id)}>
+          {game.solo ? "M’inscrire au classement" : "Inscrire l’équipe"}
+        </button>
+        <span className="text-xs text-grey">Vos 5 premiers adversaires sont appariés par le système.{game.solo ? "" : " Roster complet requis."}</span>
+      </div>
+    </section>
+  );
+}
+
+/** Fenêtres d'action : créneaux d'un défi, déclaration du résultat, refus motivé, contestation. */
+function ActionDialog({ gameId, dialog, close, pending, el, byId, run }: { gameId: string; dialog: Dialog; close: () => void; pending: boolean; el: Eligibility | null; byId: Map<string, RankingRow>; run: (p: () => Promise<RankResult>, after?: () => void) => void }) {
+  const [slots, setSlots] = useState(() => [2, 3, 4].map(slotDefault));
+  const [won, setWon] = useState(true);
+  const [score, setScore] = useState(0);
+  const [text, setText] = useState("");
+  const [err, setErr] = useState<string | undefined>();
+  const reset = () => {
+    setSlots([2, 3, 4].map(slotDefault));
+    setWon(true);
+    setScore(0);
+    setText("");
+    setErr(undefined);
+    close();
+  };
+  if (!dialog) return <Modal open={false} onClose={reset} title="">{null}</Modal>;
+  const submit = (p: () => Promise<RankResult>) =>
+    run(async () => {
+      const r = await p();
+      if (!r.ok) setErr(Object.values(r.errors)[0]);
+      return r;
+    }, reset);
+  const btn = (label: string, go: () => void, danger = false) => (
+    <button className={`btn btn-sm ${danger ? "btn-danger" : "btn-primary"}`} disabled={pending} aria-busy={pending || undefined} onClick={go}>{label}</button>
+  );
+
+  if (dialog.kind === "send") {
+    const st = el?.stakesFor(dialog.opp.id);
+    return (
+      <Modal open onClose={reset} title={`Défier ${dialog.opp.name}`} footer={btn("Envoyer le défi", () => submit(() => sendChallengeAction({ game: gameId, oppId: dialog.opp.id, slots: slots.map((v) => `${v}:00+04:00`) })))}>
+        <p>Proposez 3 créneaux (heure de La Réunion), entre 24 h et 9 jours à l’avance. L’adversaire en choisit un sous 48 h.</p>
+        {st && <p className="mt-1 text-silver">Enjeux : victoire {formatDelta(st.win)} · défaite {formatDelta(st.loss)} pts.</p>}
+        <div className="mt-3 grid gap-2">
+          {slots.map((v, i) => (
+            <label key={i} className="grid gap-1 text-xs text-grey">
+              Créneau {i + 1}
+              <input type="datetime-local" className="field" value={v} onChange={(e) => setSlots(slots.map((x, j) => (j === i ? e.target.value : x)))} />
+            </label>
+          ))}
+        </div>
+        <div className="mt-2"><FormError message={err} /></div>
+      </Modal>
+    );
+  }
+  if (dialog.kind === "declare") {
+    const scores = dialog.c.scores ?? [[1, 0]];
+    const [w, l] = scores[Math.min(score, scores.length - 1)];
+    return (
+      <Modal open onClose={reset} title={`Résultat contre ${byId.get(dialog.c.oppId)?.name ?? "l’adversaire"}`} footer={btn("Déclarer le résultat", () => submit(() => declareResultAction({ id: dialog.c.id, won, score: [w, l] })))}>
+        <div className="flex gap-2" role="group" aria-label="Issue">
+          {[true, false].map((v) => (
+            <button key={String(v)} type="button" aria-pressed={won === v} onClick={() => setWon(v)} className={`btn btn-sm flex-1 ${won === v ? "btn-primary" : "btn-tertiary"}`}>{v ? "Victoire" : "Défaite"}</button>
+          ))}
+        </div>
+        <label className="mt-3 grid gap-1 text-xs text-grey">
+          Score de la série
+          <select className="field" value={score} onChange={(e) => setScore(Number(e.target.value))}>
+            {scores.map(([a, b], i) => <option key={i} value={i}>{won ? `${a}–${b}` : `${b}–${a}`}</option>)}
+          </select>
+        </label>
+        <p className="mt-3 text-xs">Le résultat reste provisoire : l’adversaire a 24 h pour confirmer ou contester. Sans réponse, il est validé automatiquement.</p>
+        <div className="mt-2"><FormError message={err} /></div>
+      </Modal>
+    );
+  }
+  const refuse = dialog.kind === "refuse";
+  return (
+    <Modal
+      open
+      onClose={reset}
+      title={refuse ? "Refuser avec un motif admis" : "Contester le résultat"}
+      footer={btn(refuse ? "Refuser sans pénalité" : "Envoyer à l’arbitre", () => submit(() => (refuse ? respondChallengeAction({ id: dialog.c.id, refuse: "justified", reason: text }) : answerResultAction({ id: dialog.c.id, confirm: false, reason: text }))), !refuse)}
+    >
+      <p>{refuse ? "Motifs admis : indisponibilité déclarée, congé, panne majeure, défi hors zone ou abusif." : "Le résultat est suspendu jusqu’à la décision d’un arbitre. Joignez vos preuves dans le chat du match."}</p>
+      <textarea className="field mt-3 !h-auto w-full py-2" rows={3} maxLength={500} value={text} onChange={(e) => setText(e.target.value)} placeholder={refuse ? "Indisponibilité déclarée" : "Ex. score inversé, capture à l’appui"} aria-label="Motif" />
+      <div className="mt-2"><FormError message={err} /></div>
+    </Modal>
+  );
+}
+
+function Kpis({ me, participants, placement, received, general, role }: { me: RankingRow | null; participants: number; placement: number; received: number; general: Props["generalRank"]; role: Role }) {
+  const member = role !== "visiteur" && !!me;
   const items: { k: string; v: string; s: string; c?: string; href?: string }[] = [
-    { k: "Votre rang", v: member ? ordinal(me.rank) : "—", s: member ? `${me.name} · Division ${me.division}` : "Connectez-vous", c: "text-orange" },
-    { k: "Score", v: member ? fmtScore(me.score) : "—", s: `K = ${kFactor(me)} · Elo` },
+    { k: "Votre rang", v: me && member ? ordinal(me.rank) : "—", s: me && member ? `${me.name} · Division ${me.division}` : role === "visiteur" ? "Connectez-vous" : "Non classé", c: "text-orange" },
+    { k: "Score", v: me && member ? fmtScore(me.score) : "—", s: me ? `K = ${kFactor(me)} · Elo` : "Elo · départ à 800" },
     { k: "Participants", v: String(participants), s: `${placement} en placement` },
     { k: "Défis reçus", v: member ? String(received) : "—", s: "réponse sous 48 h", c: received && member ? "text-orange" : undefined },
     { k: "Classement général", v: general && member ? (general.label === "1" ? "1er" : `${general.label}e`) : "—", s: general ? `${general.structure} · tous jeux` : "", href: "/classement" },
@@ -183,15 +333,15 @@ function activity(r: RankingRow, solo: boolean): [string, string] {
 
 const GRID = "grid grid-cols-[48px_minmax(0,1fr)_64px_44px_150px_52px_96px] gap-2.5 items-center";
 
-function RankingTable({ rows, el, game, label, send, why, role }: { rows: RankingRow[]; el: Eligibility; game: GameInfo; label: (r: RankingRow) => string; send: (id: string) => void; why: (id: string) => string | null; role: Role }) {
+function RankingTable({ rows, el, me, game, label, send, why, blocked, role }: { rows: RankingRow[]; el: Eligibility | null; me: RankingRow | null; game: GameInfo; label: (r: RankingRow) => string; send: (id: string) => void; why: (id: string) => string | null; blocked: (id: string) => boolean; role: Role }) {
   const [div, setDiv] = useState("all");
   const [query, setQuery] = useState("");
   const [selId, setSelId] = useState<string | null>(null);
-  const nDiv = Math.max(...rows.map((r) => r.division));
+  const nDiv = Math.max(1, ...rows.map((r) => r.division));
   const shown = rows.filter((r) => (div === "all" || String(r.division) === div) && (!query || label(r).toLowerCase().includes(query.toLowerCase())));
-  const sel = rows.find((r) => r.id === selId) ?? rows.find((r) => r.isMe)!;
+  const sel = rows.find((r) => r.id === selId) ?? me ?? rows[0];
   const selWhy = why(sel.id);
-  const st = el.stakesFor(sel.id);
+  const st = el && !selWhy ? el.stakesFor(sel.id) : null;
 
   return (
     <div className="mt-4">
@@ -213,7 +363,7 @@ function RankingTable({ rows, el, game, label, send, why, role }: { rows: Rankin
             {shown.map((r) => {
               const [act, ac] = activity(r, game.solo);
               const v = r.prevRank - r.rank;
-              const can = !el.block(r.id);
+              const can = !blocked(r.id);
               const divBreak = r.rank > 1 && (r.rank - 1) % 8 === 0;
               return (
                 <div
@@ -247,7 +397,7 @@ function RankingTable({ rows, el, game, label, send, why, role }: { rows: Rankin
             })}
             {shown.length === 0 && <div className="px-4 py-7 text-center text-grey">Aucun participant ne correspond à ces filtres.</div>}
             <div className="border-t border-line px-4 py-2.5 text-xs leading-normal text-grey">
-              {zoneText(el.widened)} Égalité de score départagée par résultat direct, puis différence de manches. Rangs calculés à partir du score, jamais saisis à la main.
+              {zoneText(el?.widened ?? false)} Égalité de score départagée par résultat direct, puis différence de manches. Rangs calculés à partir du score, jamais saisis à la main.
             </div>
           </div>
         </div>
@@ -271,7 +421,7 @@ function RankingTable({ rows, el, game, label, send, why, role }: { rows: Rankin
             ))}
           </div>
           <div className="px-[18px] py-3">
-            {!selWhy ? (
+            {!selWhy && st ? (
               <button className="btn btn-primary w-full" onClick={() => send(sel.id)}>
                 Défier · V {formatDelta(st.win)} / D {formatDelta(st.loss)}
               </button>
@@ -287,34 +437,40 @@ function RankingTable({ rows, el, game, label, send, why, role }: { rows: Rankin
   );
 }
 
+interface Acts {
+  accept: (c: ChallengeItem, slotIso: string) => void;
+  refuse: (c: ChallengeItem) => void;
+  refuseUnjustified: (c: ChallengeItem) => void;
+  cancel: (c: ChallengeItem) => void;
+  declare: (c: ChallengeItem) => void;
+  confirmResult: (c: ChallengeItem) => void;
+  contest: (c: ChallengeItem) => void;
+}
+
 interface CenterProps {
   game: GameInfo;
-  role: Role;
   me: RankingRow;
   rows: RankingRow[];
   list: ChallengeItem[];
   byId: Map<string, RankingRow>;
   el: Eligibility;
-  last: { title: string; pts: number; ranks: string } | null;
+  pending: boolean;
   send: (id: string) => void;
-  patch: (id: string, p: Partial<ChallengeItem>) => void;
-  validate: (c: ChallengeItem) => void;
-  ask: (r: ConfirmRequest) => void;
-  reset: () => void;
+  act: Acts;
 }
 
 type Action = { l: string; kind: "p" | "t" | "d"; go: () => void };
 
-function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, patch, validate, ask, reset }: CenterProps) {
+function ChallengeCenter({ game, me, rows, list, byId, el, pending, send, act }: CenterProps) {
   const targets = rows.filter((r) => !el.block(r.id));
   const stakesTxt = (id: string) => {
     const s = el.stakesFor(id);
     return `Victoire ${formatDelta(s.win)} · défaite ${formatDelta(s.loss)} pts`;
   };
   const noTargetsTxt =
-    role === "visiteur" ? "Connectez-vous pour lancer un défi."
-    : !el.ctx.canAct ? "Seul le capitaine ou le gestionnaire peut lancer un défi."
+    !el.ctx.canAct ? "Seul le capitaine ou le gestionnaire peut lancer un défi."
     : !el.ctx.me.rosterComplete ? "Roster incomplet : complétez votre équipe pour lancer ou accepter un défi."
+    : me.inPlacement ? "Matchs de placement en cours : vos adversaires sont appariés par le système."
     : el.pendingOut >= 2 ? "Vous avez déjà 2 défis en attente : attendez une réponse avant d’en lancer un autre."
     : "Aucun adversaire disponible dans votre zone pour le moment.";
 
@@ -322,31 +478,16 @@ function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, pat
     if (!el.ctx.canAct) return [];
     if (c.status === "PENDING" && c.dir === "in")
       return [
-        ...(c.slots ?? DEMO_SLOTS).map((s, j): Action => ({ l: s, kind: j === 0 ? "p" : "t", go: () => patch(c.id, { status: "PLANNED", slot: s, meta: "Créneau choisi parmi les 3 proposés · ajouté au calendrier" }) })),
-        { l: "Refuser · motif admis", kind: "t", go: () => patch(c.id, { status: "REFUSED", meta: "Refus justifié (indisponibilité déclarée) · aucune pénalité" }) },
-        {
-          l: "Refuser sans motif",
-          kind: "d",
-          go: () =>
-            ask({
-              title: "Refuser sans motif admis ?",
-              text: `Ce défi est valide. Un refus injustifié entraîne un forfait et une pénalité de ${UNJUSTIFIED_REFUSAL_PENALTY} points, inscrite à votre historique. Un appel reste possible.`,
-              confirm: "Refuser quand même",
-              danger: true,
-              run: () => patch(c.id, { status: "FORFEIT", deltaMe: -UNJUSTIFIED_REFUSAL_PENALTY, deltaOpp: 0, meta: `Refus injustifié · forfait et −${UNJUSTIFIED_REFUSAL_PENALTY} pts appliqués` }),
-            }),
-        },
+        ...(c.slots ?? []).map((s, j): Action => ({ l: s, kind: j === 0 ? "p" : "t", go: () => act.accept(c, c.slotIsos![j]) })),
+        { l: "Refuser · motif admis", kind: "t", go: () => act.refuse(c) },
+        { l: "Refuser sans motif", kind: "d", go: () => act.refuseUnjustified(c) },
       ];
-    if (c.status === "PENDING" && c.dir === "out") return [{ l: "Annuler", kind: "t", go: () => patch(c.id, { status: "CANCELLED", meta: "Annulé par vous" }) }];
-    if (c.status === "PLANNED")
+    if (c.status === "PENDING" && c.dir === "out") return [{ l: "Annuler", kind: "t", go: () => act.cancel(c) }];
+    if (c.status === "PLANNED" && c.canDeclare) return [{ l: "Déclarer le résultat", kind: "p", go: () => act.declare(c) }];
+    if (c.status === "SUBMITTED" && c.canConfirm)
       return [
-        { l: "Déclarer une victoire", kind: "p", go: () => patch(c.id, { status: "SUBMITTED", declared: 1, meta: "Résultat déclaré : victoire · capture envoyée · l’adversaire a 24 h pour confirmer" }) },
-        { l: "Déclarer une défaite", kind: "t", go: () => patch(c.id, { status: "SUBMITTED", declared: 0, meta: "Résultat déclaré : défaite · capture envoyée · l’adversaire a 24 h pour confirmer" }) },
-      ];
-    if (c.status === "SUBMITTED")
-      return [
-        { l: "Simuler la confirmation adverse", kind: "p", go: () => validate(c) },
-        { l: "Simuler une contestation", kind: "d", go: () => patch(c.id, { status: "DISPUTED", meta: "Contesté par l’adversaire · résultat suspendu jusqu’à décision d’un arbitre" }) },
+        { l: "Confirmer le résultat", kind: "p", go: () => act.confirmResult(c) },
+        { l: "Contester", kind: "d", go: () => act.contest(c) },
       ];
     return [];
   };
@@ -377,28 +518,17 @@ function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, pat
                   </div>
                   <div className="text-xs text-grey">{fmtScore(t.score)} pts · Division {t.division}{t.team ? ` · ${t.team}` : ""}</div>
                   <div className="text-xs text-silver">{stakesTxt(t.id)}</div>
-                  <button className="btn btn-primary btn-sm mt-1.5" onClick={() => send(t.id)}>Défier · proposer 3 créneaux</button>
+                  <button className="btn btn-primary btn-sm mt-1.5" disabled={pending} onClick={() => send(t.id)}>Défier · proposer 3 créneaux</button>
                 </div>
               ))}
             </div>
           ) : (
             <div className="px-[18px] py-4 text-sm text-silver">
-              {noTargetsTxt} {role === "visiteur" && <Link href="/connexion">Se connecter →</Link>}
+              {noTargetsTxt}
             </div>
           )}
           <NonEligible rows={rows} el={el} me={me} />
         </section>
-
-        {last && (
-          <div className="grid items-center gap-6 border border-orange bg-black px-[18px] py-4 [grid-template-columns:minmax(0,1fr)_auto_auto]" role="status">
-            <div>
-              <div className="overline !text-orange">Match validé · classement recalculé</div>
-              <div className="font-display mt-1 text-2xl font-extrabold">{last.title}</div>
-            </div>
-            <div className="text-center"><div className="text-[11px] text-grey">Points</div><div className={`font-display text-[32px] font-extrabold ${last.pts >= 0 ? "text-orange" : "text-red"}`}>{formatDelta(last.pts)}</div></div>
-            <div className="text-center"><div className="text-[11px] text-grey">Rang</div><div className="font-display text-[32px] font-extrabold">{last.ranks}</div></div>
-          </div>
-        )}
 
         {groups.map(([title, items]) => (
           <section key={title} className="card">
@@ -413,12 +543,12 @@ function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, pat
                       <span className="font-semibold">{c.dir === "in" ? "Reçu de " : "Envoyé à "}{o?.name ?? "?"} · {o ? ordinal(o.rank) : "?"}</span>
                       <span className={`badge ${stc}`}>{stl}</span>
                     </div>
-                    <div className="mt-0.5 text-xs text-grey">{c.meta}{c.slot ? ` · ${c.slot}` : ""}</div>
+                    <div className="mt-0.5 text-xs text-grey">{c.meta}{c.slot && !FINISHED.has(c.status) ? ` · ${c.slot}` : ""}</div>
                     <div className="mt-0.5 text-xs text-silver">{c.result ?? (FINISHED.has(c.status) || !o ? "" : stakesTxt(c.oppId))}</div>
                   </div>
                   <div className="flex flex-auto flex-wrap justify-end gap-1.5">
                     {actionsFor(c).map((a) => (
-                      <button key={a.l} onClick={a.go} className={`btn btn-sm ${a.kind === "p" ? "btn-primary" : a.kind === "d" ? "btn-danger" : "btn-tertiary"}`}>{a.l}</button>
+                      <button key={a.l} onClick={a.go} disabled={pending} className={`btn btn-sm ${a.kind === "p" ? "btn-primary" : a.kind === "d" ? "btn-danger" : "btn-tertiary"}`}>{a.l}</button>
                     ))}
                   </div>
                 </div>
@@ -427,7 +557,6 @@ function ChallengeCenter({ game, role, me, rows, list, byId, el, last, send, pat
             {items.length === 0 && <div className="px-[18px] py-4 text-[13px] text-grey">Aucun défi.</div>}
           </section>
         ))}
-        <button onClick={reset} className="justify-self-start text-xs text-grey underline-offset-2 hover:text-orange hover:underline">Réinitialiser la démonstration</button>
       </div>
 
       <div className="grid gap-4">
@@ -516,7 +645,7 @@ function NonEligible({ rows, el, me }: { rows: RankingRow[]; el: Eligibility; me
 }
 
 function Divisions({ rows, solo }: { rows: RankingRow[]; solo: boolean }) {
-  const nDiv = Math.max(...rows.map((r) => r.division));
+  const nDiv = Math.max(1, ...rows.map((r) => r.division));
   return (
     <>
       <div className="mt-4 border border-line bg-surface px-4 py-3 text-[13px] text-silver">

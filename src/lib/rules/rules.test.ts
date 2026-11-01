@@ -234,3 +234,29 @@ describe("tâches programmées et intégrations simulées", () => {
     expect(r.url).toMatch(/^\/lan\/x\/paiement\/retour\?session_id=mock_cs_.+&mock=1$/);
   });
 });
+
+import { inactivityStep, resolveMatch, seriesScores } from "./rankings";
+
+describe("résultats et inactivité", () => {
+  const now = new Date("2026-11-01T12:00:00Z");
+  it("Elo symétrique quand le match compte", () => {
+    const r = resolveMatch({ score: 1000, placementMatches: 10 }, { score: 1000, placementMatches: 10 }, true, [], now);
+    expect(r).toEqual({ counted: true, deltaA: 16, deltaB: -16 });
+  });
+  it("3e match de la paire en 30 jours : ne compte pas", () => {
+    const d = [new Date("2026-10-20T12:00:00Z"), new Date("2026-10-25T12:00:00Z")];
+    expect(resolveMatch({ score: 900, placementMatches: 9 }, { score: 950, placementMatches: 9 }, true, d, now)).toEqual({ counted: false, deltaA: 0, deltaB: 0 });
+  });
+  it("paliers d'inactivité appliqués une seule fois", () => {
+    expect(inactivityStep(14, false, 0)).toEqual({ level: 0, penalty: 0 });
+    expect(inactivityStep(22, false, 0)).toEqual({ level: 1, penalty: 20 });
+    expect(inactivityStep(22, false, 1)).toEqual({ level: 1, penalty: 0 });
+    expect(inactivityStep(40, false, 1)).toEqual({ level: 3, penalty: 60 });
+    expect(inactivityStep(29, true, 0)).toEqual({ level: 3, penalty: 80 });
+  });
+  it("scores possibles par série", () => {
+    expect(seriesScores("BO3")).toEqual([[2, 0], [2, 1]]);
+    expect(seriesScores("FT3")).toEqual([[3, 0], [3, 1], [3, 2]]);
+    expect(seriesScores(null)).toEqual([[1, 0]]);
+  });
+});

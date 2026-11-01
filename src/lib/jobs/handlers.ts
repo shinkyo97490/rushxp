@@ -1,11 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { ensureNextEvent } from "@/lib/events/queries";
+import { dailyRankings } from "@/lib/rankings/engine";
 
 /**
  * Tâches connues. Chaque traitement est idempotent : relancé après un échec, il ne fait rien deux fois.
- * Les lots suivants ajoutent : relances et expirations de défis, forfaits au check-in, activation des cycles de cartes,
- * publications programmées, analyse OCR, recalcul des classements.
+ * Les échéances des défis sont aussi réglées à chaque visite des Rankings (le cron Hobby ne passe qu'une fois par jour).
  */
 export const HANDLERS: Record<string, (payload: Record<string, unknown>) => Promise<void>> = {
   /** Entretien quotidien : sessions et jetons expirés. */
@@ -18,5 +18,9 @@ export const HANDLERS: Record<string, (payload: Record<string, unknown>) => Prom
   /** Prépare les prochains RDV mensuels (inscriptions ouvertes à l'avance). */
   "events.ensure-next": async () => {
     for (const game of ["tft", "wz", "apex"] as const) await ensureNextEvent(game);
+  },
+  /** Défis : relances, expirations, validations automatiques, appariements de placement, inactivité. */
+  "rankings.daily": async () => {
+    await dailyRankings();
   },
 };

@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClassementTabs } from "@/components/ClassementTabs";
-import { GAMES } from "@/lib/data/games";
-import { getStructureStandings } from "@/lib/data/repo";
+import { getGeneralStandings } from "@/lib/rankings/standings";
 import { rankLabel } from "@/lib/rules/standings";
 import { structurePoints } from "@/lib/rules/scales";
 
@@ -10,10 +9,10 @@ export const metadata: Metadata = { title: "Classement général" };
 
 export default async function ClassementPage({ searchParams }: { searchParams: Promise<{ sort?: string }> }) {
   const { sort } = await searchParams;
-  const sortGame = GAMES.find((g) => g.id === sort);
-  const all = getStructureStandings();
+  const { list: all, columns: GAMES, indicative, phaseLabel } = await getGeneralStandings();
+  const sortGame = GAMES.find((g) => g.key === sort);
   const list = sortGame
-    ? [...all].sort((a, b) => (b.perGame[sortGame.id]?.points ?? 0) - (a.perGame[sortGame.id]?.points ?? 0))
+    ? [...all].sort((a, b) => (b.perGame[sortGame.key]?.points ?? 0) - (a.perGame[sortGame.key]?.points ?? 0))
     : all;
   const cols = `48px minmax(180px,1fr) 70px repeat(${GAMES.length}, 58px)`;
 
@@ -24,8 +23,11 @@ export default async function ClassementPage({ searchParams }: { searchParams: P
       <h1 className="font-display mt-1 text-[clamp(40px,6vw,56px)] font-extrabold leading-none">Classement général des structures</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-silver">
         Les points viennent du barème appliqué au rang de chaque roster dans les RushXP Rankings : {[1, 2, 3, 4, 5, 6, 7, 8].map(structurePoints).join(" / ")}, puis −4 par rang (minimum 5).
-        Seule l’équipe la mieux classée d’une structure compte. En 1v1, c’est le meilleur joueur. Pour les jeux en lobby, on prend le rang de la structure au cumul des RDV mensuels.
+        Seule l’équipe la mieux classée d’une structure compte. En 1v1, c’est le meilleur joueur. Pour les jeux en lobby, on prend le rang de la structure au cumul des RDV mensuels. Les LAN ajoutent le barème LAN (Rankings + 50) par jeu.
       </p>
+      {indicative && (
+        <div className="mt-3 max-w-3xl border border-yellow px-4 py-2.5 text-[13px] text-yellow">{phaseLabel || "Pré-saison"} : classement indicatif, les points ne comptent pas encore au classement général.</div>
+      )}
 
       <div className="card mt-5 overflow-x-auto">
         <div style={{ minWidth: 48 + 180 + 70 + GAMES.length * 58 + 12 * (GAMES.length + 3) + 36 }}>
@@ -34,11 +36,12 @@ export default async function ClassementPage({ searchParams }: { searchParams: P
             <span>Structure</span>
             <Link href="/classement" className={`text-right ${!sortGame ? "text-orange" : "text-grey"}`} aria-current={!sortGame ? "true" : undefined}>Total</Link>
             {GAMES.map((g) => (
-              <Link key={g.id} href={`/classement?sort=${g.id}`} title={`Trier par ${g.name}`} className={`text-center ${sortGame?.id === g.id ? "text-orange" : "text-grey"} hover:text-ink`}>
+              <Link key={g.key} href={`/classement?sort=${g.key}`} title={`Trier par ${g.name}`} className={`text-center ${sortGame?.key === g.key ? "text-orange" : "text-grey"} hover:text-ink`}>
                 {g.short}
               </Link>
             ))}
           </div>
+          {list.length === 0 && <div className="px-[18px] py-8 text-center text-silver">Aucune structure classée pour le moment : les points arrivent dès les premiers matchs validés.</div>}
           {list.map((s) => (
             <div key={s.structureId} className="list-row grid items-center gap-3 text-sm" style={{ gridTemplateColumns: cols }}>
               <span className={`font-display text-xl font-extrabold ${s.rank === 1 ? "text-yellow" : ""}`}>{rankLabel(s)}</span>
@@ -49,9 +52,9 @@ export default async function ClassementPage({ searchParams }: { searchParams: P
               </span>
               <span className="text-right font-display text-lg font-bold">{s.total}</span>
               {GAMES.map((g) => {
-                const pg = s.perGame[g.id];
+                const pg = s.perGame[g.key];
                 return (
-                  <span key={g.id} className={`text-center ${pg ? "" : "text-grey"}`} title={pg ? `${g.name} : ${pg.rank}e → ${pg.points} pts` : `${g.name} : non classé`}>
+                  <span key={g.key} className={`text-center ${pg ? "" : "text-grey"}`} title={pg ? (pg.rank ? `${g.name} : ${pg.rank}e → ${pg.points} pts` : `${g.name} : ${pg.points} pts`) : `${g.name} : non classé`}>
                     {pg ? pg.points : "—"}
                   </span>
                 );

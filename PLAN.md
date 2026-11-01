@@ -102,9 +102,9 @@ Une page interne `/admin/ui` (réservée aux admins) montrera tous les états po
 | Écran | Aujourd’hui | Reste à faire |
 |---|---|---|
 | Accueil, bloc « Pour vous » | Fait | Contenu piloté par `ContentItem HOME`, prochaine échéance réelle |
-| RushXP Rankings, Centre des défis | Interface complète, **données démo** | Passage en base : entrée en placement, défis, appariements auto, relance et expiration, refus −40, recalcul Elo, limite par paire |
+| RushXP Rankings, Centre des défis | **Fait (en base)** : entrée au classement, appariements de placement, défis à 3 créneaux, relance 24 h, expiration 48 h, refus motivé ou −40, déclaration du score, confirmation / contestation, validation auto 24 h, Elo, limite par paire, immunité, inactivité | Seeding figé le 31 août (lot E), congés déclarés |
 | Calendrier | Démo | Défis confirmés, RDV, Playoffs, LAN en base ; filtre « LAN » |
-| Classement général | Démo | Grand livre `PointsLedger` (Rankings, RDV, LAN), détail cliquable, égalités |
+| Classement général | **Fait (en base)** : Rankings, cumul des RDV hors pré-saison, LAN terminées ; indicatif en pré-saison | Détail cliquable par structure |
 | Match Center | Interface complète par jeu, **état local** | Persistance, temps réel, check-in avec forfait automatique, diffusion annoncée dans le chat, OCR mocké derrière l’interface, journal officiel |
 | Feuille de match | Démo | `PlayerMatchStat`, liens depuis profils et calendrier |
 | Espace arbitre | Signalements réels, contestations démo | `Dispute` en base, preuve à côté des valeurs, décision motivée, sanction |

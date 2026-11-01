@@ -13,6 +13,7 @@ export async function GET(req: Request) {
   const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion" }).format(new Date());
   await enqueue("maintenance.daily", new Date(), {}, `maintenance.daily:${day}`);
   await enqueue("events.ensure-next", new Date(), {}, `events.ensure-next:${day}`);
+  await enqueue("rankings.daily", new Date(), {}, `rankings.daily:${day}`);
 
   const report = await runDueJobs();
   return Response.json(report, { headers: { "Cache-Control": "no-store" } });

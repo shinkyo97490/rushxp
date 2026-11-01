@@ -10,7 +10,7 @@ import { K_DEFAULT, K_PLACEMENT, PLACEMENT_MATCHES, START_SCORE } from "@/lib/ru
 import { MAX_PENDING_OUT, PAIR_MAX_COUNTED, PAIR_WINDOW_DAYS, REMATCH_DAYS, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
 import { MAX_SUBS } from "@/lib/rules/roster";
 import { LAN_BONUS, structurePoints } from "@/lib/rules/scales";
-import { DIVISION_SIZE } from "@/lib/data/repo";
+import { DIVISION_SIZE } from "@/lib/rankings-model";
 import { Empty } from "@/components/PageHeader";
 import { integrationStatus } from "@/lib/integrations";
 import { LanEditor, LanResultsEditor, ValidateLanResults, type LanForm } from "@/components/admin/LanAdmin";

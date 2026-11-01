@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { GAMES } from "@/lib/data/games";
-import { getStructureStandings } from "@/lib/data/repo";
+import { getGeneralStandings } from "@/lib/rankings/standings";
 import { rankLabel } from "@/lib/rules/standings";
 import { getViewer } from "@/lib/auth/viewer";
 import { isStaff } from "@/lib/session-shared";
@@ -18,7 +18,7 @@ export default async function Home() {
   const { season, phase, next } = await getSeasonContext(now);
   const structures = await db.structure.count({ where: { status: "VERIFIED" } }).catch(() => 0);
   const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "Indian/Reunion" });
-  const top5 = getStructureStandings().slice(0, 5);
+  const top5 = (await getGeneralStandings()).list.slice(0, 5);
   const member = role !== "visiteur";
 
   return (

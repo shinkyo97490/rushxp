@@ -446,6 +446,13 @@ model RankingEntry {
   lastMatchAt      DateTime?
   immunityUntil    DateTime?
   onLeaveUntil     DateTime?
+  wins             Int       @default(0)
+  losses           Int       @default(0)
+  /// rang avant le dernier recalcul (flèche de variation)
+  prevRank         Int?
+  /// palier de pénalité d'inactivité déjà appliqué (0 → 3), remis à 0 à chaque match
+  penaltyLevel     Int       @default(0)
+  createdAt        DateTime  @default(now())
 
   @@id([game, entityId])
   @@index([game, score])
@@ -465,6 +472,7 @@ model Challenge {
   refusalReason String?
   createdAt     DateTime        @default(now())
   respondBy     DateTime
+  remindedAt    DateTime?
 
   match Match?
 
@@ -486,6 +494,14 @@ model Match {
   checkInB    DateTime?
   status      MatchStatus @default(SCHEDULED)
   streamLinks Json        @default("[]")
+  winner      String?
+  scoreA      Int?
+  scoreB      Int?
+  /// compte au classement (au plus 2 matchs par paire sur 30 jours glissants)
+  counted     Boolean     @default(false)
+  deltaA      Int?
+  deltaB      Int?
+  playedAt    DateTime?
 
   challenge   Challenge?         @relation(fields: [challengeId], references: [id])
   veto        Veto?

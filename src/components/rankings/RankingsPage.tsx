@@ -1,7 +1,7 @@
-import { CHALLENGE_GAMES, getGame, isSolo, type ChallengeGameId } from "@/lib/data/games";
-import { getRankings, getStructureStandings } from "@/lib/data/repo";
-import { initialChallenges } from "@/lib/data/challenges";
-import { canChallenge, getRole } from "@/lib/session";
+import { CHALLENGE_GAMES, getGame, isSolo } from "@/lib/data/games";
+import { getViewer } from "@/lib/auth/viewer";
+import { loadRankingsPage } from "@/lib/rankings/queries";
+import { getGeneralStandings } from "@/lib/rankings/standings";
 import { rankLabel } from "@/lib/rules/standings";
 import { ClassementTabs } from "@/components/ClassementTabs";
 import { GameSelect } from "./GameSelect";
@@ -9,13 +9,12 @@ import { RankingsClient, type RankingsTab } from "./RankingsClient";
 
 export async function RankingsPage({ tab, searchParams }: { tab: RankingsTab; searchParams: Promise<{ game?: string }> }) {
   const { game: gameParam } = await searchParams;
-  const game = getGame(gameParam ?? "") ?? CHALLENGE_GAMES[0];
-  const gameId = (game.kind === "challenge" ? game.id : "val") as ChallengeGameId;
-  const role = await getRole();
+  const found = getGame(gameParam ?? "");
+  const game = found && found.kind === "challenge" ? found : CHALLENGE_GAMES[0];
+  const viewer = await getViewer();
   const solo = isSolo(game);
-  const rows = getRankings(gameId);
-  const me = rows.find((r) => r.isMe)!;
-  const general = getStructureStandings().find((s) => s.structureId === me.structureId);
+  const data = await loadRankingsPage(game.id, viewer);
+  const general = data.me?.structureId ? (await getGeneralStandings()).list.find((s) => s.structureId === data.me!.structureId) : undefined;
 
   return (
     <main className="container-rx pt-7 pb-16">
@@ -26,7 +25,7 @@ export async function RankingsPage({ tab, searchParams }: { tab: RankingsTab; se
           <h1 className="font-display mt-1 text-[clamp(40px,6vw,56px)] font-extrabold leading-none">RushXP Rankings</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <GameSelect value={gameId} options={CHALLENGE_GAMES.map((g) => ({ id: g.id, label: `${g.name} · ${isSolo(g) ? "Solo 1v1" : "Équipes " + g.format}` }))} />
+          <GameSelect value={game.id} options={CHALLENGE_GAMES.map((g) => ({ id: g.id, label: `${g.name} · ${isSolo(g) ? "Solo 1v1" : "Équipes " + g.format}` }))} />
           <select className="field" aria-label="Région" defaultValue="re">
             <option value="re">Océan Indien · La Réunion</option>
             <option disabled>France métropolitaine (bientôt)</option>
@@ -34,13 +33,14 @@ export async function RankingsPage({ tab, searchParams }: { tab: RankingsTab; se
         </div>
       </div>
       <RankingsClient
-        key={gameId}
+        key={game.id}
         tab={tab}
-        game={{ id: gameId, name: game.name, solo, format: game.format }}
-        role={role}
-        canAct={canChallenge(role, solo)}
-        rows={rows}
-        initial={initialChallenges(gameId)}
+        game={{ id: game.id, name: game.name, solo, format: game.format }}
+        role={viewer?.role ?? "visiteur"}
+        canAct={data.canAct}
+        rows={data.rows}
+        challenges={data.challenges}
+        enterable={data.enterable.map((e) => ({ id: e.id, label: e.label }))}
         generalRank={general ? { label: rankLabel(general), structure: general.structure.name } : null}
       />
     </main>

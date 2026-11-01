@@ -4,6 +4,7 @@ import { DemoBar } from "@/components/DemoBar";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { getViewer } from "@/lib/auth/viewer";
+import { pendingReceivedCount } from "@/lib/rankings/queries";
 import { ToastProvider } from "@/components/ui/interactive";
 import "./globals.css";
 
@@ -24,7 +25,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body className="min-h-screen flex flex-col">
         <ToastProvider>
           <DemoBar />
-          <Header viewer={viewer} />
+          <Header viewer={viewer} received={viewer ? await pendingReceivedCount(viewer).catch(() => 0) : 0} />
           <div className="flex-1">{children}</div>
           <Footer />
         </ToastProvider>

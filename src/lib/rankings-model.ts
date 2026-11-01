@@ -2,25 +2,49 @@
 
 import { challengeBlock, ineligibilityLabel, isZoneWidened, type ChallengeContext, type Ineligibility } from "@/lib/rules/challenge";
 import { stakes } from "@/lib/rules/elo";
-import type { ChallengeItem } from "@/lib/data/challenges";
-import { DIVISION_SIZE, type RankingRow } from "@/lib/data/repo";
+import type { ChallengeStatus } from "@/lib/rules/challenge";
+
+export const DIVISION_SIZE = 8;
+
+export interface RankingRow {
+  id: string; // roster (équipe) ou joueur (1v1)
+  name: string;
+  team?: string; // nom d'équipe secondaire ou structure du joueur
+  structureId: string;
+  score: number;
+  rank: number;
+  prevRank: number;
+  placementMatches: number;
+  wins: number;
+  losses: number;
+  daysSinceMatch: number;
+  rosterComplete: boolean;
+  division: number;
+  isMe: boolean;
+  inPlacement: boolean;
+  immuneUntil?: string | null;
+}
+
+export interface ChallengeItem {
+  id: string;
+  dir: "in" | "out";
+  oppId: string;
+  status: ChallengeStatus;
+  origin: "manual" | "auto";
+  meta: string;
+  slots?: string[];
+  slotIsos?: string[];
+  slot?: string;
+  slotIso?: string;
+  result?: string;
+  playedAt?: string; // ISO, pour la règle de revanche
+  matchId?: string;
+  canConfirm?: boolean; // l'adversaire a déclaré : à vous de confirmer ou contester
+  canDeclare?: boolean;
+  scores?: [number, number][];
+}
 
 const ACTIVE = new Set(["PENDING", "ACCEPTED", "PLANNED", "CHECK_IN", "LIVE", "SUBMITTED", "DISPUTED"]);
-
-export function liveRows(base: RankingRow[], challenges: ChallengeItem[]): RankingRow[] {
-  const me = base.find((r) => r.isMe);
-  const delta = new Map<string, number>();
-  for (const c of challenges) {
-    if (c.deltaMe == null || !me) continue;
-    delta.set(me.id, (delta.get(me.id) ?? 0) + c.deltaMe);
-    delta.set(c.oppId, (delta.get(c.oppId) ?? 0) + (c.deltaOpp ?? 0));
-  }
-  const nDiv = Math.max(1, Math.ceil(base.length / DIVISION_SIZE));
-  return base
-    .map((r) => ({ ...r, score: r.score + (delta.get(r.id) ?? 0) }))
-    .sort((a, b) => b.score - a.score)
-    .map((r, i) => ({ ...r, rank: i + 1, division: r.inPlacement ? nDiv : Math.min(nDiv, Math.floor(i / DIVISION_SIZE) + 1) }));
-}
 
 export interface Eligibility {
   ctx: ChallengeContext;
@@ -40,6 +64,7 @@ export function eligibility(rows: RankingRow[], challenges: ChallengeItem[], can
     structureId: solo ? null : r.structureId, // en 1v1, deux joueurs d'une même structure peuvent s'affronter
     inPlacement: r.inPlacement,
     inactive: r.daysSinceMatch > (solo ? 7 : 14) + 21,
+    immuneUntil: r.immuneUntil ? new Date(r.immuneUntil) : null,
     rosterComplete: r.rosterComplete,
   });
   const lastMatchWith = new Map<string, Date>();

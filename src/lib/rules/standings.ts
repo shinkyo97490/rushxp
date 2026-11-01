@@ -22,7 +22,7 @@ export interface StructureStanding {
  * (en 1v1 : le meilleur joueur de la structure). Les entrées en placement ne comptent pas.
  * Pour les jeux en lobby, passer le rang de la structure au cumul des RDV de la saison.
  */
-export function structureStandings(rosters: RankedRoster[]): StructureStanding[] {
+export function structureStandings(rosters: RankedRoster[], extra: { structureId: string; key: string; points: number }[] = []): StructureStanding[] {
   const map = new Map<string, StructureStanding>();
   for (const r of rosters) {
     if (r.inPlacement) continue;
@@ -31,6 +31,12 @@ export function structureStandings(rosters: RankedRoster[]): StructureStanding[]
     const cur = s.perGame[r.game];
     if (!cur || pts > cur.points) s.perGame[r.game] = { points: pts, rank: r.rank };
     map.set(r.structureId, s);
+  }
+  // Points hors Rankings (LAN) : ajoutés tels quels, sous leur propre clé.
+  for (const x of extra) {
+    const s = map.get(x.structureId) ?? { structureId: x.structureId, perGame: {}, total: 0, rank: 0, tied: false };
+    s.perGame[x.key] = { points: (s.perGame[x.key]?.points ?? 0) + x.points, rank: 0 };
+    map.set(x.structureId, s);
   }
   const list = [...map.values()];
   for (const s of list) s.total = Object.values(s.perGame).reduce((a, g) => a + g.points, 0);

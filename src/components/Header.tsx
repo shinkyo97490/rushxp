@@ -2,17 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { ROLE_LABEL, isStaff } from "@/lib/session-shared";
 import type { Viewer } from "@/lib/auth/viewer";
-import { receivedChallengeCount } from "@/lib/data/challenges";
 import { NavLinks, type NavItem } from "./NavLinks";
 import { AccountMenu } from "./AccountMenu";
 
 const iconBtn =
   "relative grid h-[38px] w-[38px] flex-none place-items-center border border-line bg-surface transition-colors duration-150 hover:border-orange";
 
-export function Header({ viewer }: { viewer: Viewer | null }) {
+export function Header({ viewer, received = 0 }: { viewer: Viewer | null; received?: number }) {
   const role = viewer?.role ?? "visiteur";
   const member = !!viewer;
-  const received = member ? receivedChallengeCount() : 0;
   const nav: NavItem[] = [
     { href: "/", label: "Accueil", match: ["/"] },
     { href: "/rankings/defis", label: "Défis", match: ["/rankings/defis"], badge: received },
@@ -24,7 +22,6 @@ export function Header({ viewer }: { viewer: Viewer | null }) {
     { href: "/actualites", label: "Actualités", match: ["/actualites"] },
     { href: "/recrutement", label: "Recrutement", match: ["/recrutement"] },
     { href: "/partenaires", label: "Partenaires", match: ["/partenaires"] },
-    { href: "/le-circuit", label: "Le circuit", match: ["/le-circuit", "/reglement"] },
   ];
 
   return (

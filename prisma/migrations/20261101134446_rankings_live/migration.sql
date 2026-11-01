@@ -1,0 +1,18 @@
+-- AlterTable
+ALTER TABLE "Challenge" ADD COLUMN     "remindedAt" TIMESTAMP(3);
+
+-- AlterTable
+ALTER TABLE "Match" ADD COLUMN     "counted" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "deltaA" INTEGER,
+ADD COLUMN     "deltaB" INTEGER,
+ADD COLUMN     "playedAt" TIMESTAMP(3),
+ADD COLUMN     "scoreA" INTEGER,
+ADD COLUMN     "scoreB" INTEGER,
+ADD COLUMN     "winner" TEXT;
+
+-- AlterTable
+ALTER TABLE "RankingEntry" ADD COLUMN     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "losses" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "penaltyLevel" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "prevRank" INTEGER,
+ADD COLUMN     "wins" INTEGER NOT NULL DEFAULT 0;
