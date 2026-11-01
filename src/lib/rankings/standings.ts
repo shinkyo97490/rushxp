@@ -64,7 +64,7 @@ export const getGeneralStandings = cache(async () => {
   const byId = new Map(structures.map((s) => [s.id, s]));
   return {
     indicative: !phase?.countsForGeneral,
-    phaseLabel: phase?.label ?? "",
+    phaseLabel: phase?.label ?? `${season.name} (lancement le 1er janvier)`,
     list: standings.filter((s) => byId.has(s.structureId)).map((s) => ({ ...s, structure: byId.get(s.structureId)! })),
     columns: [...GAMES.map((g) => ({ key: g.id, short: g.short, name: g.name })), { key: "lan", short: "LAN", name: "LAN & événements" }],
   };

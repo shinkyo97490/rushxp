@@ -1,4 +1,5 @@
 import "server-only";
+import { gamesLine, readGames } from "@/lib/rules/series";
 import { db } from "@/lib/db";
 import type { Viewer } from "@/lib/auth/viewer";
 import { getGame, isSolo } from "@/lib/data/games";
@@ -135,7 +136,7 @@ export async function challengeItems(game: string, entityId: string, now = new D
         const mine = sub?.uploaderId && sub.status === "AWAITING_OPPONENT" ? sub : null;
         const declaredWin = sub && sub.declaredA != null && sub.declaredB != null ? (amA ? sub.declaredA > sub.declaredB : sub.declaredB > sub.declaredA) : null;
         const score = sub ? `${Math.max(sub.declaredA ?? 0, sub.declaredB ?? 0)}–${Math.min(sub.declaredA ?? 0, sub.declaredB ?? 0)}` : "";
-        meta = `Résultat déclaré : ${declaredWin ? "victoire" : "défaite"} ${score} · validation automatique sous ${inHours(new Date((sub?.createdAt ?? now).getTime() + 24 * 36e5), now)} h sans réponse`;
+        meta = `Résultat déclaré : ${declaredWin ? "victoire" : "défaite"} ${score} · ${readGames(sub?.games).length ? ` (${gamesLine(c.game, readGames(sub?.games), amA)})` : ""} · validation automatique sous ${inHours(new Date((sub?.createdAt ?? now).getTime() + 24 * 36e5), now)} h sans réponse`;
         canConfirm = !!mine;
         break;
       }
@@ -146,7 +147,7 @@ export async function challengeItems(game: string, entityId: string, now = new D
         if (m?.winner) {
           const won = m.winner === entityId;
           const d = amA ? m.deltaA : m.deltaB;
-          meta = `Validé le ${fmtDate(m.playedAt ?? c.createdAt)}${m.counted ? "" : " · non compté (3e match de la paire en 30 jours)"}`;
+          meta = `Validé le ${fmtDate(m.playedAt ?? c.createdAt)}${m.counted ? "" : " · non compté (3e match de la paire en 30 jours)"}${readGames(m.games).length ? ` · ${gamesLine(c.game, readGames(m.games), amA)}` : ""}`;
           result = `${won ? "Victoire" : "Défaite"} ${Math.max(m.scoreA ?? 0, m.scoreB ?? 0)}–${Math.min(m.scoreA ?? 0, m.scoreB ?? 0)} · ${d != null && d >= 0 ? "+" : "−"}${Math.abs(d ?? 0)} pts`;
         }
         break;

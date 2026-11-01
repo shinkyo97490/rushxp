@@ -27,7 +27,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
     orderBy: { createdAt: "asc" },
   });
   const now = new Date();
-  const { season, phase } = await getSeasonContext(now);
+  const { season, phase, prelaunch } = await getSeasonContext(now);
   const viewer = await getViewer();
   const matches = (await calendarItems({ viewer, from: new Date(now.getTime() - 14 * 86_400_000), to: new Date(now.getTime() + 60 * 86_400_000), game: g.id })).slice(0, 12);
   const base = `/competitions?jeu=${g.id}`;
@@ -56,7 +56,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
           </div>
           <div className="min-w-0 flex-[1_1_360px]">
             <div className="flex flex-wrap items-center gap-2 text-[13px]">
-              <span className="badge text-orange">{lobby ? "Inscriptions ouvertes" : `Phase en cours · ${phase?.label ?? "intersaison"}`}</span>
+              <span className="badge text-orange">{lobby ? "Inscriptions ouvertes" : prelaunch ? `${season.name} · lancement le 1er janvier` : `Phase en cours · ${phase?.label ?? "intersaison"}`}</span>
               <span className="text-silver">{g.name} · {g.format} · {season.name}</span>
             </div>
             <h1 className="font-display mt-1 text-[clamp(40px,6vw,60px)] font-extrabold leading-[.95]">{d.comp}</h1>

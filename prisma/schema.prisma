@@ -505,6 +505,8 @@ model Match {
   /// Playoffs : QF1…QF4, SF1, SF2, F
   round       String?
   seasonYear  Int?
+  /// Détail de la série : [{ map?, mode?, a, b }] (score de chaque partie / carte)
+  games       Json        @default("[]")
 
   challenge   Challenge?         @relation(fields: [challengeId], references: [id])
   veto        Veto?
@@ -583,6 +585,8 @@ model ResultSubmission {
   ocrConfidence Float?
   declaredA     Int?
   declaredB     Int?
+  /// Détail déclaré de la série : [{ map?, mode?, a, b }]
+  games         Json             @default("[]")
   status        SubmissionStatus @default(UPLOADED)
   createdAt     DateTime         @default(now())
 

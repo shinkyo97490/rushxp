@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
+import { seasonYearAt } from "@/lib/rules/season";
 import { getGame } from "@/lib/data/games";
 import { freezeSeeding, generateBracket } from "@/lib/playoffs";
 import { logEvent } from "@/lib/matches/room";
@@ -10,7 +11,7 @@ import { notifyEntity } from "@/lib/rankings/engine";
 
 type R = { ok: true; message?: string } | { ok: false; errors: Record<string, string> };
 const fail = (m: string): R => ({ ok: false, errors: { _: m } });
-const currentYear = () => Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(new Date()));
+const currentYear = () => seasonYearAt();
 
 async function admin() {
   const v = await getViewer();

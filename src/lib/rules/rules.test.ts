@@ -353,3 +353,41 @@ describe("webhook Stripe", () => {
     expect(verifyStripeSignature(body, null, secret, t)).toBe(false);
   });
 });
+
+import { FIRST_SEASON, seasonYearAt } from "./season";
+import { gameLabel, seriesFromGames, seriesShape } from "./series";
+
+describe("saison de lancement", () => {
+  it("la plateforme démarre en 2027", () => {
+    expect(FIRST_SEASON).toBe(2027);
+    expect(seasonYearAt(new Date("2026-11-01T12:00:00+04:00"))).toBe(2027);
+    expect(seasonYearAt(new Date("2027-06-01T12:00:00+04:00"))).toBe(2027);
+    expect(seasonYearAt(new Date("2027-12-31T21:00:00Z"))).toBe(2028); // 1er janv. 01:00 à La Réunion
+  });
+});
+
+describe("détail des séries", () => {
+  it("forme des séries", () => {
+    expect(seriesShape("BO3")).toEqual({ toWin: 2, max: 3 });
+    expect(seriesShape("BO5")).toEqual({ toWin: 3, max: 5 });
+    expect(seriesShape("FT3")).toEqual({ toWin: 3, max: 5 });
+    expect(seriesShape("BO1")).toEqual({ toWin: 1, max: 1 });
+  });
+  it("score de série déduit des parties", () => {
+    expect(seriesFromGames("BO3", [{ a: 13, b: 9 }, { a: 10, b: 13 }, { a: 13, b: 11 }])).toEqual({ a: 2, b: 1 });
+    expect(seriesFromGames("BO3", [{ a: 3, b: 13 }, { a: 7, b: 13 }])).toEqual({ a: 0, b: 2 });
+    expect(seriesFromGames("FT3", [{ a: 3, b: 1 }, { a: 2, b: 3 }, { a: 3, b: 0 }, { a: 3, b: 2 }])).toEqual({ a: 3, b: 1 });
+  });
+  it("refuse les séries incohérentes", () => {
+    expect(seriesFromGames("BO3", [{ a: 13, b: 9 }])).toHaveProperty("error");
+    expect(seriesFromGames("BO3", [{ a: 13, b: 9 }, { a: 13, b: 5 }, { a: 2, b: 13 }])).toHaveProperty("error");
+    expect(seriesFromGames("BO3", [{ a: 2, b: 2 }, { a: 13, b: 5 }])).toHaveProperty("error");
+    expect(seriesFromGames("BO3", [{ a: -1, b: 2 }, { a: 13, b: 5 }])).toHaveProperty("error");
+    expect(seriesFromGames("BO3", [])).toHaveProperty("error");
+  });
+  it("libellés", () => {
+    expect(gameLabel("val", 1, { map: "Bind" })).toBe("Carte 2 · Bind");
+    expect(gameLabel("cod", 0, { map: "Protocol", mode: "HP" })).toBe("Carte 1 · Protocol · Hardpoint");
+    expect(gameLabel("rl", 2)).toBe("Partie 3");
+  });
+});

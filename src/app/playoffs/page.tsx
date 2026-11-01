@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { seasonYearAt } from "@/lib/rules/season";
 import { CHALLENGE_GAMES, getGame } from "@/lib/data/games";
 import { getPlayoffs } from "@/lib/playoffs";
 
@@ -31,7 +32,7 @@ function MatchBox({ m }: { m: BracketMatch }) {
 export default async function PlayoffsPage({ searchParams }: { searchParams: Promise<{ jeu?: string }> }) {
   const { jeu } = await searchParams;
   const g = CHALLENGE_GAMES.find((x) => x.id === jeu) ?? CHALLENGE_GAMES[0];
-  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(new Date()));
+  const year = seasonYearAt();
   const { qf, sf, fi, seeds, champion, frozen } = await getPlayoffs(g.id, year);
   const rounds: [string, string, BracketMatch[]][] = [["Quarts", "septembre", qf], ["Demi-finales", "octobre", sf], ["Finale", "nov. → déc.", fi]];
 
@@ -49,7 +50,7 @@ export default async function PlayoffsPage({ searchParams }: { searchParams: Pro
           <div className="border border-yellow bg-black/70 px-6 py-4 text-right">
             <div className="overline !text-yellow">Cashprize</div>
             <div className="font-display text-[56px] font-extrabold leading-none text-yellow">2 500 €</div>
-            <div className="text-xs text-silver">réparti entre les vainqueurs des 5 jeux</div>
+            <div className="text-xs text-silver">à partager pour les tops de la Division 1</div>
           </div>
         </div>
       </section>

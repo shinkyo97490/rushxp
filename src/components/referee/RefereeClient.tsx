@@ -7,12 +7,13 @@ import { resolveReportAction } from "@/lib/admin/actions";
 import { moderateMatchChatAction, refereeDecisionAction } from "@/lib/matches/actions";
 import { FormError, TextArea } from "@/components/forms";
 import { useServerAction } from "@/components/useServerAction";
+import { SeriesEditor } from "@/components/match/SeriesGames";
+import type { GameScore } from "@/lib/rules/series";
 
 /** Décision motivée sur un résultat contesté : appliquée au classement et inscrite au journal du match. */
-export function DisputeDecision({ matchId, a: teamA, b: teamB, scores }: { matchId: string; a: string; b: string; scores: [number, number][] }) {
+export function DisputeDecision({ matchId, game, series, a: teamA, b: teamB, declared }: { matchId: string; game: string; series: string; a: string; b: string; declared: GameScore[] }) {
   const router = useRouter();
-  const [winner, setWinner] = useState<"a" | "b">("a");
-  const [si, setSi] = useState(0);
+  const [games, setGames] = useState<GameScore[]>(declared);
   const [reason, setReason] = useState("");
   const act = useServerAction(refereeDecisionAction, {
     onDone: (r) => {
@@ -20,14 +21,10 @@ export function DisputeDecision({ matchId, a: teamA, b: teamB, scores }: { match
     },
   });
   return (
-    <form className="grid gap-3 border-t border-line p-[18px]" onSubmit={(e) => { e.preventDefault(); act.run({ matchId, winner, score: scores[si], reason }); }}>
-      <div className="flex flex-wrap gap-1.5">
-        {(["a", "b"] as const).map((k) => (
-          <button key={k} type="button" aria-pressed={winner === k} onClick={() => setWinner(k)} className={`btn btn-sm ${winner === k ? "btn-primary" : "btn-tertiary"}`}>Victoire {k === "a" ? teamA : teamB}</button>
-        ))}
-        <select className="field !h-9" aria-label="Score" value={si} onChange={(e) => setSi(Number(e.target.value))}>
-          {scores.map(([x, y], i) => <option key={i} value={i}>{x}–{y}</option>)}
-        </select>
+    <form className="grid gap-3 border-t border-line p-[18px]" onSubmit={(e) => { e.preventDefault(); act.run({ matchId, games, reason }); }}>
+      <div className="grid gap-1.5">
+        <span className="overline">Résultat retenu, partie par partie</span>
+        <SeriesEditor game={game} series={series} names={{ a: teamA, b: teamB }} planned={[]} initial={declared} onChange={setGames} />
       </div>
       <label className="grid gap-1.5">
         <span className="overline">Motif (visible par les deux équipes)</span>

@@ -2,7 +2,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { Viewer } from "@/lib/auth/viewer";
 import { getGame, isSolo } from "@/lib/data/games";
-import { DEFAULT_POOLS, hasVeto, type VetoPool, type VetoStep } from "@/lib/rules/veto";
+import { DEFAULT_POOLS, hasVeto, playedMaps, type VetoPool, type VetoStep } from "@/lib/rules/veto";
+import { readGames } from "@/lib/rules/series";
 import { seriesScores } from "@/lib/rules/rankings";
 import { ROUND_LABEL } from "@/lib/rules/playoffs";
 import { recipients } from "@/lib/rankings/engine";
@@ -89,13 +90,15 @@ export async function getMatchRoom(matchId: string, viewer: Viewer | null) {
     a: { id: m.a, ...(names.get(m.a) ?? { name: "?", tag: "?", structureId: null }), checkIn: !!m.checkInA, lineup: await lineup(m.a) },
     b: { id: m.b, ...(names.get(m.b) ?? { name: "?", tag: "?", structureId: null }), checkIn: !!m.checkInB, lineup: await lineup(m.b) },
     score: m.scoreA != null ? [m.scoreA, m.scoreB ?? 0] : null,
+    games: readGames(m.games),
+    plannedMaps: hasVeto(m.game) ? playedMaps((m.veto?.steps as VetoStep[] | undefined) ?? []).map((x) => ({ map: x.map, mode: x.mode })) : [],
     winner: (m.winner === m.a ? "a" : m.winner === m.b ? "b" : null) as "a" | "b" | null,
     deltas: m.deltaA != null ? [m.deltaA, m.deltaB ?? 0] : null,
     counted: m.counted,
     challengeId: m.challenge?.id ?? null,
     challengeStatus: m.challenge?.status ?? null,
     submission: sub
-      ? { declaredA: sub.declaredA, declaredB: sub.declaredB, status: sub.status, by: sub.uploader.pseudo, fileUrl: sub.fileUrl || null, side: (await sideOf(m, sub.uploaderId)).side, dispute: sub.disputes[0]?.reason ?? null, decision: sub.disputes[0]?.decision ?? null }
+      ? { declaredA: sub.declaredA, declaredB: sub.declaredB, games: readGames(sub.games), status: sub.status, by: sub.uploader.pseudo, fileUrl: sub.fileUrl || null, side: (await sideOf(m, sub.uploaderId)).side, dispute: sub.disputes[0]?.reason ?? null, decision: sub.disputes[0]?.decision ?? null }
       : null,
     veto: hasVeto(m.game) ? { steps: (m.veto?.steps as VetoStep[] | undefined) ?? [], pool } : null,
     streams: (m.streamLinks as { platform: string; url: string }[]) ?? [],

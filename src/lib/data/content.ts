@@ -4,7 +4,7 @@
  * gérés depuis l'administration (règlement versionné) dans un lot ultérieur.
  */
 
-export const RULES_VERSION = "2026.4";
+export const RULES_VERSION = "2027.1";
 export const RULES_UPDATED = "30 oct. 2026";
 
 export const RULES_GENERAL: { title: string; items: [string, string][] }[] = [
@@ -79,7 +79,7 @@ export const GUIDE: Record<string, { label: string; blocks: { t: string; d: stri
       { t: "Défis", d: "Vous pouvez défier jusqu’à 2 rangs au-dessus et 1 en dessous. Proposez 3 créneaux, l’adversaire en choisit un sous 48 h, le match se joue sous 7 jours. Pas de revanche avant 14 jours.", cta: ["Centre des défis", "/rankings/defis"] },
       { t: "Résultats", d: "Envoyez la capture de fin de match : le score est lu automatiquement, puis l’adversaire confirme sous 24 h. Les points ne bougent qu’une fois le résultat validé." },
       { t: "Saison & divisions", d: "Pré-saison de janvier à avril pour se placer, saison régulière de mai à août. Divisions de 8, recalculées après chaque match validé : le top 8 au 31 août forme la Division 1 qualifiée pour les Playoffs." },
-      { t: "Playoffs & cashprize", d: "Le top 8 de la Division 1 au 31 août dispute les Playoffs de septembre à décembre, finale en LAN. 2 500 € de cashprize.", cta: ["Playoffs", "/playoffs"] },
+      { t: "Playoffs & cashprize", d: "Le top 8 de la Division 1 au 31 août dispute les Playoffs de septembre à décembre, finale en LAN. 2 500 € de cashprize à partager pour les tops de la Division 1.", cta: ["Playoffs", "/playoffs"] },
       { t: "Fair-play", d: "Refus de défi sans motif : forfait et −40 pts. Inactivité au-delà de 14 jours (équipes) ou 7 jours (1v1) : avertissement puis pénalités. 14 jours de congé par an sans pénalité." },
     ],
   },
@@ -109,7 +109,7 @@ export const GUIDE: Record<string, { label: string; blocks: { t: string; d: stri
       { t: "Comment sont choisis les qualifiés des Playoffs ?", d: "Le seeding officiel du 31 août est figé : les 8 premiers de la Division 1 sont qualifiés, 1er contre 8e, 2e contre 7e, etc." },
       { t: "Que se passe-t-il si l’adversaire conteste ?", d: "Le résultat est suspendu et un arbitre tranche à partir des preuves. Aucun point n’est versé avant la décision." },
       { t: "Puis-je changer de structure ou de joueurs ?", d: "Oui, toute l’année : RushXP est un circuit amateur, il n’y a pas de mercato. Un joueur qui rejoint une nouvelle structure quitte automatiquement l’ancienne. Seule limite : un joueur ne dispute les Playoffs que pour une seule équipe par saison." },
-      { t: "Qui touche le cashprize ?", d: "Les 2 500 € sont réservés au top de la Division 1 en Playoffs. La répartition est publiée dans le règlement." },
+      { t: "Qui touche le cashprize ?", d: "Les 2 500 € sont à partager pour les tops de la Division 1 en Playoffs. La répartition est publiée dans le règlement." },
     ],
   },
 };
@@ -126,7 +126,7 @@ export const SEASON_PEAKS: [string, string, string, string][] = [
   ["Janv. → avr.", "Pré-saison", "placement et inscriptions", "Moyen"],
   ["Mai → août", "Saison régulière", "défis classés, course au top 8", "Fort"],
   ["31 août", "Seeding figé", "qualifiés connus", "Fort"],
-  ["Sept. → déc.", "Playoffs & finale LAN", "2 500 € de cashprize", "Très fort"],
+  ["Sept. → déc.", "Playoffs & finale LAN", "2 500 € à partager", "Très fort"],
 ];
 
 /** Formats des rendez-vous mensuels (jeux en lobby). */
@@ -152,3 +152,12 @@ export const BADGES: [string, string, string, number][] = [
   ["1ER", "Champion", "Remporter les Playoffs d’un jeu", 500],
   ["MG", "Multigaming", "Jouer des matchs classés sur 3 jeux", 120],
 ];
+
+/** Réseaux officiels RushXP. */
+export const SOCIALS = [
+  { id: "twitch", name: "Twitch", handle: "rushxptv", url: "https://www.twitch.tv/rushxptv" },
+  { id: "discord", name: "Discord", handle: "Serveur RushXP", url: "https://discord.com/invite/CwrJXNzyx4" },
+  { id: "instagram", name: "Instagram", handle: "@rushxp974", url: "https://www.instagram.com/rushxp974/" },
+  { id: "tiktok", name: "TikTok", handle: "@rushxp974", url: "https://www.tiktok.com/@rushxp974" },
+  { id: "facebook", name: "Facebook", handle: "RUSH XP", url: "https://www.facebook.com/people/RUSH-XP/61571200804042/" },
+] as const;

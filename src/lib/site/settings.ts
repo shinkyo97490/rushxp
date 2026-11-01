@@ -16,7 +16,7 @@ export const HOME_BLOCKS = ["Pour vous", "Calendrier de saison", "Prochains matc
 export const HOME_DEFAULT: HomeContent = {
   title: "Chaque match",
   accent: "compte au classement.",
-  subtitle: "RushXP réunit cinq jeux compétitifs dans un classement permanent. Défiez les équipes proches de vous, montez en division et visez les Playoffs : 2 500 € pour le top de la Division 1.",
+  subtitle: "RushXP réunit cinq jeux compétitifs dans un classement permanent. Défiez les équipes proches de vous, montez en division et visez les Playoffs : 2 500 € à partager pour les tops de la Division 1.",
   heroImage: "/assets/photo-dsc07373.jpg",
   bannerLan: null,
   blocks: [...HOME_BLOCKS],
@@ -31,7 +31,11 @@ export const getSetting = cache(async <T,>(key: string, fallback: T): Promise<T>
   }
 });
 
-export const getHome = () => getSetting<HomeContent>("home", HOME_DEFAULT);
+/** Accueil enregistré par l'admin ; l'ancienne formule du cashprize est remplacée par la formule validée. */
+export const getHome = async () => {
+  const h = await getSetting<HomeContent>("home", HOME_DEFAULT);
+  return { ...h, subtitle: h.subtitle.replace("2 500 € pour le top de la Division 1", "2 500 € à partager pour les tops de la Division 1") };
+};
 export const getMaintenance = () => getSetting<{ on: boolean; message: string }>("maintenance", { on: false, message: "" });
 
 export interface CompetitionText {

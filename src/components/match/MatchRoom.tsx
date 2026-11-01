@@ -11,6 +11,8 @@ import { STREAM_PLATFORMS } from "@/lib/rules/streams";
 import { ChatMessage } from "@/components/ui/blocks";
 import { FormError } from "@/components/forms";
 import { ImageUpload } from "@/components/ImageUpload";
+import { SeriesEditor, SeriesTable } from "./SeriesGames";
+import type { GameScore } from "@/lib/rules/series";
 
 const time = (iso: string) => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(new Date(iso));
 const when = (iso: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(new Date(iso));
@@ -107,6 +109,9 @@ function Score({ m }: { m: MatchRoomData }) {
     <div className="text-center">
       <div className="font-display text-[clamp(32px,5vw,48px)] font-extrabold leading-none">{s ? `${s[0]} – ${s[1]}` : "vs"}</div>
       <div className="mt-1 text-[11px] font-bold tracking-[.08em] text-silver">{m.score ? "OFFICIEL" : prov ? "PROVISOIRE" : m.series}</div>
+      {(m.games.length > 0 || (prov && m.submission?.games.length)) && (
+        <div className="mt-1 text-xs tabular-nums text-grey">{(m.games.length ? m.games : m.submission!.games).map((g) => `${g.a}–${g.b}`).join(" · ")}</div>
+      )}
     </div>
   );
 }
@@ -213,13 +218,11 @@ function Veto({ m, pending, onPick }: { m: MatchRoomData; pending: boolean; onPi
 type Run = (p: () => Promise<{ ok: true; message?: string } | { ok: false; errors: Record<string, string> }>, after?: () => void) => void;
 
 function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: Run }) {
-  const [won, setWon] = useState(true);
-  const [si, setSi] = useState(0);
+  const [games, setGames] = useState<GameScore[]>([]);
   const [reason, setReason] = useState("");
-  const [winner, setWinner] = useState<"a" | "b">("a");
   const [proof, setProof] = useState("");
   const [err, setErr] = useState<string>();
-  const [w, l] = m.scores[Math.min(si, m.scores.length - 1)];
+  const names = { a: m.a.name, b: m.b.name };
   const started = m.started;
   const sub = m.submission;
 
@@ -229,6 +232,7 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
     body = (
       <div className="grid gap-2 text-sm">
         <p><strong>{m[m.winner!].name}</strong> remporte la série {Math.max(...m.score)}–{Math.min(...m.score)}.</p>
+        <SeriesTable game={m.game} games={m.games} names={names} compact />
         {d && <p className="text-silver">{m.counted ? `Points : ${m.a.name} ${d[0] >= 0 ? "+" : "−"}${Math.abs(d[0])} · ${m.b.name} ${d[1] >= 0 ? "+" : "−"}${Math.abs(d[1])}` : "Match non compté au classement (3e match de la paire en 30 jours)."}</p>}
         <Link href={`/feuille-de-match?m=${m.id}`} className="text-[13px] font-semibold">Voir la feuille de match →</Link>
       </div>
@@ -237,12 +241,16 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
     body = (
       <div className="grid gap-3 text-sm">
         <p className="text-red">Résultat contesté : {sub?.dispute ?? "motif non précisé"}. En attente d’un arbitre.</p>
+        {sub && sub.games.length > 0 && (
+          <div>
+            <div className="overline mb-1">Déclaré par {sub.by}</div>
+            <SeriesTable game={m.game} games={sub.games} names={names} compact />
+          </div>
+        )}
         {m.viewer.staff && (
-          <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); run(async () => { const r = await refereeDecisionAction({ matchId: m.id, winner, score: [w, l], reason }); if (!r.ok) setErr(Object.values(r.errors)[0]); return r; }); }}>
-            <div className="flex flex-wrap gap-1.5">
-              {(["a", "b"] as const).map((k) => <button key={k} type="button" aria-pressed={winner === k} onClick={() => setWinner(k)} className={`btn btn-sm ${winner === k ? "btn-primary" : "btn-tertiary"}`}>Victoire {m[k].name}</button>)}
-              <select className="field !h-9" aria-label="Score" value={si} onChange={(e) => setSi(Number(e.target.value))}>{m.scores.map(([x, y], i) => <option key={i} value={i}>{x}–{y}</option>)}</select>
-            </div>
+          <form className="grid gap-2" onSubmit={(e) => { e.preventDefault(); run(async () => { const r = await refereeDecisionAction({ matchId: m.id, games: games.length ? games : (sub?.games ?? []), reason }); if (!r.ok) setErr(Object.values(r.errors)[0]); return r; }); }}>
+            <div className="overline">Résultat retenu par l’arbitre</div>
+            <SeriesEditor game={m.game} series={m.series} names={names} planned={m.plannedMaps} initial={sub?.games} onChange={setGames} />
             <textarea className="field !h-auto py-2" rows={2} placeholder="Motif de la décision (preuves, article du règlement)" aria-label="Motif de la décision" value={reason} onChange={(e) => setReason(e.target.value)} />
             <button className="btn btn-primary btn-sm justify-self-start" disabled={pending}>Rendre la décision</button>
             <FormError message={err} />
@@ -257,6 +265,7 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
       <div className="grid gap-3 text-sm">
         {sub.fileUrl && <a href={sub.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[13px]">Voir la capture jointe →</a>}
         <p>Résultat déclaré par <strong>{sub.by}</strong> : victoire <strong>{aWon ? m.a.name : m.b.name}</strong> {Math.max(sub.declaredA ?? 0, sub.declaredB ?? 0)}–{Math.min(sub.declaredA ?? 0, sub.declaredB ?? 0)}. Provisoire : l’adversaire a 24 h pour confirmer ou contester.</p>
+        <SeriesTable game={m.game} games={sub.games} names={names} compact />
         {canAnswer && (
           <div className="grid gap-2">
             <div className="flex flex-wrap gap-1.5">
@@ -274,11 +283,9 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
   } else if (m.viewer.side && m.viewer.lead && ["SCHEDULED", "CHECK_IN", "LIVE"].includes(m.status)) {
     body = started ? (
       <div className="grid gap-2 text-sm">
-        <div className="flex flex-wrap gap-1.5">
-          {[true, false].map((v) => <button key={String(v)} type="button" aria-pressed={won === v} onClick={() => setWon(v)} className={`btn btn-sm ${won === v ? "btn-primary" : "btn-tertiary"}`}>{v ? "Victoire" : "Défaite"}</button>)}
-          <select className="field !h-9" aria-label="Score" value={si} onChange={(e) => setSi(Number(e.target.value))}>{m.scores.map(([x, y], i) => <option key={i} value={i}>{won ? `${x}–${y}` : `${y}–${x}`}</option>)}</select>
-          <button className="btn btn-secondary btn-sm" disabled={pending} onClick={() => run(async () => { const r = await declareMatchAction({ matchId: m.id, won, score: [w, l], fileUrl: proof || undefined }); if (!r.ok) setErr(Object.values(r.errors)[0]); return r; })}>Déclarer</button>
-        </div>
+        <p className="text-xs text-grey">Saisissez le score de chaque {m.game === "val" || m.game === "cod" ? "carte" : "partie"} : le score de la série est calculé automatiquement.</p>
+        <SeriesEditor game={m.game} series={m.series} names={names} planned={m.plannedMaps} onChange={setGames} />
+        <button className="btn btn-secondary btn-sm justify-self-start" disabled={pending} onClick={() => run(async () => { const r = await declareMatchAction({ matchId: m.id, games, fileUrl: proof || undefined }); if (!r.ok) setErr(Object.values(r.errors)[0]); return r; })}>Déclarer le résultat</button>
         <ImageUpload folder="captures" label={proof ? "✓ Capture jointe · remplacer" : "Joindre la capture de fin de partie"} onUploaded={setProof} />
         <p className="text-xs text-grey">Le résultat reste provisoire jusqu’à confirmation de l’adversaire (ou 24 h).</p>
         <FormError message={err} />

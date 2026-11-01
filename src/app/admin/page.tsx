@@ -20,7 +20,7 @@ import { CampaignEditor, CompetitionTextEditor, HomeEditor, MaintenanceToggle, P
 import { SLOT_LABEL } from "@/lib/site/ads";
 import { getCompetitionTexts, getHome, getMaintenance, HOME_BLOCKS } from "@/lib/site/settings";
 import { getPlayoffs } from "@/lib/playoffs";
-import { getSeason } from "@/lib/season";
+import { getSeason, seasonYearAt } from "@/lib/season";
 import { MatchDate, PlayoffsGameActions } from "@/components/admin/PlayoffsAdmin";
 import { RoundEntry } from "@/components/admin/RdvAdmin";
 import { CycleEditor, DeleteCycle } from "@/components/admin/MapPoolAdmin";
@@ -719,7 +719,7 @@ async function LanSection({ id, isAdmin }: { id?: string; isAdmin: boolean }) {
 // ─── Playoffs ────────────────────────────────────────────────────
 
 async function PlayoffsSection() {
-  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(new Date()));
+  const year = seasonYearAt();
   const season = await getSeason(year);
   const games = await Promise.all(CHALLENGE_GAMES.map(async (g) => ({ g, p: await getPlayoffs(g.id, year) })));
   return (

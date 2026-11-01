@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { getGame } from "@/lib/data/games";
 import { namesFor } from "@/lib/matches/queries";
-import { seriesScores } from "@/lib/rules/rankings";
+import { gamesLine, readGames } from "@/lib/rules/series";
 import { Empty, PageHeader } from "@/components/PageHeader";
 import { DisputeDecision, MatchChatDecision, ReportDecision } from "@/components/referee/RefereeClient";
 
@@ -158,6 +158,7 @@ export default async function ArbitragePage({ searchParams }: { searchParams: Pr
                 <span className="overline">Comparaison</span>
                 {[
                   [`Déclaré par ${dispute.d.submission.uploader.pseudo}`, `${names.get(dispute.m.a)?.name} ${dispute.d.submission.declaredA ?? "?"} – ${dispute.d.submission.declaredB ?? "?"} ${names.get(dispute.m.b)?.name}`, false],
+                  ...(readGames(dispute.d.submission.games).length ? [["Détail déclaré", gamesLine(dispute.m.game, readGames(dispute.d.submission.games)), false]] : []),
                   [`Contesté par ${dispute.d.openedBy.pseudo}`, dispute.d.reason, true],
                   ["Capture", dispute.d.submission.fileUrl ? <a key="c" href={dispute.d.submission.fileUrl} target="_blank" rel="noopener noreferrer">Ouvrir la capture →</a> : "à demander dans le salon", !dispute.d.submission.fileUrl],
                 ].map(([k, v, warn]) => (
@@ -168,7 +169,7 @@ export default async function ArbitragePage({ searchParams }: { searchParams: Pr
                 ))}
               </div>
               <Extract events={dispute.m.events} authors={authors} />
-              <DisputeDecision matchId={dispute.m.id} a={names.get(dispute.m.a)?.name ?? "A"} b={names.get(dispute.m.b)?.name ?? "B"} scores={seriesScores(dispute.m.series)} />
+              <DisputeDecision matchId={dispute.m.id} a={names.get(dispute.m.a)?.name ?? "A"} b={names.get(dispute.m.b)?.name ?? "B"} game={dispute.m.game} series={dispute.m.series} declared={readGames(dispute.d.submission.games)} />
             </>
           ) : chat ? (
             <>

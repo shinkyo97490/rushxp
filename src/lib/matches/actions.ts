@@ -4,10 +4,10 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { applyVeto, nextStep, playedMaps, type VetoPool, type VetoStep } from "@/lib/rules/veto";
-import { seriesScores } from "@/lib/rules/rankings";
 import { STREAM_PLATFORMS, validateStreamUrl, type StreamPlatform } from "@/lib/rules/streams";
 import { entityName, notifyEntity } from "@/lib/rankings/engine";
-import { answerMatchResult, declareMatchResult, finalizeMatch } from "./results";
+import { answerMatchResult, declareMatchResult, finalizeMatch, gamesSummary } from "./results";
+import { cleanGames, seriesFromGames, type GameScore } from "@/lib/rules/series";
 import { mvpPanel } from "@/lib/players";
 import { activePool, CHECKIN_GRACE_MIN, CHECKIN_OPEN_MIN, logEvent, sideOf } from "./room";
 
@@ -105,30 +105,32 @@ export async function addStreamAction(input: { matchId: string; platform: string
 }
 
 /** Décision d'arbitre sur un résultat contesté (ou saisie directe) : motivée et inscrite au journal. */
-export async function refereeDecisionAction(input: { matchId: string; winner: "a" | "b"; score: [number, number]; reason: string }): Promise<MatchResult> {
+export async function refereeDecisionAction(input: { matchId: string; games: GameScore[]; reason: string }): Promise<MatchResult> {
   const c = await ctx(input.matchId);
   if (!c?.staff) return fail("Réservé aux arbitres.");
   const { m } = c;
   const reason = input.reason.trim();
   if (reason.length < 5) return { ok: false, errors: { reason: "Motivez la décision (5 caractères minimum)." } };
-  const [w, l] = input.score;
-  if (!seriesScores(m.series).some(([x, y]) => x === w && y === l)) return fail("Score impossible pour ce format.");
-  const winnerId = input.winner === "a" ? m.a : m.b;
-  const ok = await finalizeMatch(m.id, winnerId, w, l, "referee");
+  const games = cleanGames(input.games);
+  const s = seriesFromGames(m.series, games);
+  if ("error" in s) return fail(s.error);
+  const [w, l] = [Math.max(s.a, s.b), Math.min(s.a, s.b)];
+  const winnerId = s.a > s.b ? m.a : m.b;
+  const ok = await finalizeMatch(m.id, winnerId, w, l, "referee", games);
   if (!ok) return fail("Le résultat a déjà été validé.");
   await db.dispute.updateMany({ where: { submission: { matchId: m.id }, decidedAt: null }, data: { decision: reason, refereeId: c.v.id, decidedAt: new Date() } });
-  await logEvent(m.id, "REFEREE", `Décision : victoire ${await entityName(m.game, winnerId)} ${w}–${l}. Motif : ${reason}`, c.v.id);
-  await db.auditLog.create({ data: { actorId: c.v.id, action: "match.decision", target: `match:${m.id}`, after: { winner: winnerId, score: `${w}-${l}`, reason } } });
+  await logEvent(m.id, "REFEREE", `Décision : victoire ${await entityName(m.game, winnerId)} ${w}–${l} (${gamesSummary(m.game, games)}). Motif : ${reason}`, c.v.id);
+  await db.auditLog.create({ data: { actorId: c.v.id, action: "match.decision", target: `match:${m.id}`, after: { winner: winnerId, score: `${w}-${l}`, games: games as object[], reason } } });
   for (const id of [m.a, m.b]) await notifyEntity(m.game, id, `Décision d’arbitre rendue sur votre match : ${reason}`, `/match?m=${m.id}`);
   revalidatePath("/arbitrage");
   revalidatePath("/playoffs");
   return done(m.challenge ? "Décision enregistrée : classement recalculé." : "Décision enregistrée.");
 }
 
-export async function declareMatchAction(input: { matchId: string; won: boolean; score: [number, number]; fileUrl?: string }): Promise<MatchResult> {
+export async function declareMatchAction(input: { matchId: string; games: GameScore[]; fileUrl?: string }): Promise<MatchResult> {
   const v = await getViewer();
   if (!v) return fail("Session expirée.");
-  const r = await declareMatchResult(v.id, input.matchId, input.won, input.score, input.fileUrl ?? "");
+  const r = await declareMatchResult(v.id, input.matchId, input.games, input.fileUrl ?? "");
   if (r.ok) revalidatePath("/rankings/defis");
   return r.ok ? done(r.message) : r;
 }

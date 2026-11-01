@@ -1,5 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
+import { SOCIALS } from "@/lib/data/content";
+import { SocialIcon } from "./SocialIcon";
 
 const COLS: [string, [string, string][]][] = [
   ["Compétition", [["RushXP Rankings", "/rankings"], ["Classement général", "/classement"], ["RDV mensuels", "/rdv"], ["LAN & événements", "/lan"], ["Playoffs", "/playoffs"]]],
@@ -14,6 +16,13 @@ export function Footer() {
         <div className="grid content-start gap-3">
           <Image src="/assets/rushxp-logo-sm.png" alt="RushXP" width={56} height={56} />
           <p className="max-w-xs text-sm leading-relaxed text-grey">La plateforme esports compétitive de La Réunion. Multi-jeux, multi-structures.</p>
+          <div className="flex flex-wrap gap-2" aria-label="Réseaux RushXP">
+            {SOCIALS.map((n) => (
+              <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" aria-label={`RushXP sur ${n.name}`} title={n.name} className="grid h-9 w-9 place-items-center border border-line text-silver hover:border-orange hover:text-orange">
+                <SocialIcon id={n.id} />
+              </a>
+            ))}
+          </div>
         </div>
         {COLS.map(([title, links]) => (
           <div key={title} className="grid content-start gap-2">

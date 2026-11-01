@@ -6,6 +6,8 @@ import { rankLabel } from "@/lib/rules/standings";
 import { getViewer } from "@/lib/auth/viewer";
 import { isStaff } from "@/lib/session-shared";
 import { getSeasonContext } from "@/lib/season";
+import { SOCIALS } from "@/lib/data/content";
+import { SocialIcon } from "@/components/SocialIcon";
 import { db } from "@/lib/db";
 import { SeasonTimeline } from "@/components/SeasonTimeline";
 import { getHome } from "@/lib/site/settings";
@@ -17,7 +19,7 @@ export default async function Home() {
   const viewer = await getViewer();
   const role = viewer?.role ?? "visiteur";
   const now = new Date();
-  const { season, phase, next } = await getSeasonContext(now);
+  const { season, phase, next, prelaunch } = await getSeasonContext(now);
   const structures = await db.structure.count({ where: { status: "VERIFIED" } }).catch(() => 0);
   const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "Indian/Reunion" });
   const top5 = (await getGeneralStandings()).list.slice(0, 5);
@@ -42,7 +44,7 @@ export default async function Home() {
           <div>
             <div className="mb-5 flex items-center gap-2.5">
               <span className="h-2 w-2 animate-rxpulse bg-orange" />
-              <span className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">{season.name} · {phase?.label ?? "intersaison"}</span>
+              <span className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">{season.name} · {phase?.label ?? (prelaunch ? "lancement le 1er janvier" : "intersaison")}</span>
             </div>
             <h1 className="font-display text-[clamp(52px,8vw,86px)] font-extrabold leading-[.9] tracking-[-.01em]">
               {home.title}
@@ -62,9 +64,9 @@ export default async function Home() {
           <div className="grid justify-items-end gap-4">
             <Image src="/assets/rushxp-logo.png" alt="RushXP" width={190} height={190} className="hidden md:block" />
             <div className="w-full max-w-[380px] border border-line bg-[rgba(20,20,20,.92)] backdrop-blur-sm">
-              <div className="overline border-b border-line px-[18px] py-3 !tracking-[.12em]">Saison active</div>
+              <div className="overline border-b border-line px-[18px] py-3 !tracking-[.12em]">{prelaunch ? "Prochaine saison" : "Saison active"}</div>
               <div className="grid grid-cols-3 gap-3 px-[18px] py-3.5">
-                <div><div className="text-xs text-grey">Phase</div><div className="font-display text-xl font-bold text-orange">{phase?.label ?? "Intersaison"}</div></div>
+                <div><div className="text-xs text-grey">Phase</div><div className="font-display text-xl font-bold text-orange">{phase?.label ?? (prelaunch ? "Pré-lancement" : "Intersaison")}</div></div>
                 <div><div className="text-xs text-grey">Jeux</div><div className="font-display text-xl font-bold">{GAMES.length}</div></div>
                 <div><div className="text-xs text-grey">Structures</div><div className="font-display text-xl font-bold">{structures}</div></div>
               </div>
@@ -228,6 +230,21 @@ export default async function Home() {
         </div>
       </section>
       )}
+
+      <section className="container-rx pt-10" aria-labelledby="reseaux">
+        <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
+          <h2 id="reseaux" className="font-display text-[34px] font-extrabold">Suivez RushXP</h2>
+          <span className="text-sm text-grey">Matchs en direct, annonces et communauté</span>
+        </div>
+        <div className="grid gap-px border border-line bg-line [grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr))]">
+          {SOCIALS.map((n) => (
+            <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-surface px-4 py-4 text-ink hover:bg-surface-2 hover:text-orange">
+              <SocialIcon id={n.id} size={24} />
+              <span className="min-w-0"><span className="block font-semibold">{n.name}</span><span className="block truncate text-xs text-grey">{n.handle}</span></span>
+            </a>
+          ))}
+        </div>
+      </section>
 
       {show("Partenaires") && partners.length > 0 && (
       <section className="container-rx pt-10" aria-labelledby="partenaires">

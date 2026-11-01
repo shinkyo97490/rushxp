@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { EVENT_FORMATS } from "@/lib/data/content";
 import { monthKey, nextEventDate } from "./schedule";
-import { getSeason } from "@/lib/season";
+import { getSeason, seasonYearAt } from "@/lib/season";
 import { monthlyEventsAllowed } from "@/lib/rules/season";
 
 type LobbyGame = "tft" | "wz" | "apex";
@@ -11,7 +11,7 @@ type LobbyGame = "tft" | "wz" | "apex";
 export async function ensureNextEvent(game: LobbyGame) {
   const now = new Date();
   // Phases lues en base (année en cours et suivante) : les RDV n'ont lieu que pendant les phases qui l'autorisent.
-  const phases = [...(await getSeason(now.getFullYear())).phases, ...(await getSeason(now.getFullYear() + 1)).phases];
+  const phases = [...(await getSeason(seasonYearAt(now))).phases, ...(await getSeason(seasonYearAt(now) + 1)).phases];
   const date = nextEventDate(game, now, (d) => monthlyEventsAllowed(phases, d));
   const f = EVENT_FORMATS[game];
   // Check-in le même jour, à l'heure de La Réunion (le serveur peut tourner en UTC).

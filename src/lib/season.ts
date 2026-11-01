@@ -1,9 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { db } from "@/lib/db";
-import { defaultSeason, nextPhase, phaseAt, type SeasonDef, type SeasonPhaseDef } from "@/lib/rules/season";
+import { defaultSeason, nextPhase, phaseAt, seasonYearAt, type SeasonDef, type SeasonPhaseDef } from "@/lib/rules/season";
 
-export { phaseState, phaseWhen } from "@/lib/rules/season";
+export { phaseState, phaseWhen, seasonYearAt, FIRST_SEASON } from "@/lib/rules/season";
 export type { SeasonPhaseDef } from "@/lib/rules/season";
 
 /**
@@ -37,9 +37,12 @@ export const getSeason = cache(async (year: number): Promise<SeasonDef> => {
 
 /** Saison en cours, phase en cours et prochaine étape (au besoin dans la saison suivante). */
 export async function getSeasonContext(now = new Date()) {
-  const season = await getSeason(now.getFullYear());
-  const following = await getSeason(now.getFullYear() + 1);
+  const year = seasonYearAt(now);
+  const season = await getSeason(year);
+  const following = await getSeason(year + 1);
   const phase: SeasonPhaseDef | null = phaseAt(season.phases, now);
   const next = nextPhase(season.phases, now) ?? following.phases[0] ?? null;
-  return { season, phase, next };
+  /** Avant le lancement (1er janvier 2027) : aucune phase en cours. */
+  const prelaunch = now < (season.phases[0]?.startsAt ?? now);
+  return { season, phase, next, prelaunch };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { seriesScores, CONFIRM_HOURS } from "@/lib/rules/rankings";
+import { CONFIRM_HOURS } from "@/lib/rules/rankings";
+import { cleanGames, gameLabel, readGames, seriesFromGames, type GameScore } from "@/lib/rules/series";
 import { nextRound } from "@/lib/rules/playoffs";
 import { applyResult, entityName, notifyEntity, recipients } from "@/lib/rankings/engine";
 import { logEvent } from "./room";
@@ -17,7 +18,13 @@ async function sideFor(m: { game: string; a: string; b: string }, userId: string
 }
 
 /** Déclaration du résultat par un camp, après l'heure du match. Provisoire jusqu'à confirmation (ou 24 h). */
-export async function declareMatchResult(userId: string, matchId: string, won: boolean, score: [number, number], fileUrl = ""): Promise<Outcome> {
+/** Résumé « Ascent 13–9 · Bind 10–13 · … » (côté A–B). */
+export function gamesSummary(game: string, games: GameScore[]) {
+  return games.map((g, i) => `${g.map ?? gameLabel(game, i)} ${g.a}–${g.b}`).join(" · ");
+}
+
+/** Déclaration du résultat partie par partie (scores côté A–B) : le score de la série en est déduit. */
+export async function declareMatchResult(userId: string, matchId: string, rawGames: unknown, fileUrl = ""): Promise<Outcome> {
   if (fileUrl && !isUploadedUrl(fileUrl)) return fail("Capture invalide.");
   const m = await db.match.findUnique({ where: { id: matchId } });
   if (!m) return fail("Match introuvable.");
@@ -25,31 +32,34 @@ export async function declareMatchResult(userId: string, matchId: string, won: b
   if (!side) return fail("Seul le capitaine, un gestionnaire ou le joueur concerné déclare le résultat.");
   if (!(OPEN as readonly string[]).includes(m.status)) return fail("Le résultat a déjà été déclaré.");
   if (m.scheduledAt > new Date()) return fail("Le résultat se déclare après l’heure du match.");
-  const [w, l] = score;
-  if (!seriesScores(m.series).some(([x, y]) => x === w && y === l)) return fail("Score impossible pour ce format.");
-  const aWon = side === "a" ? won : !won;
+  const games = cleanGames(rawGames);
+  const s = seriesFromGames(m.series, games);
+  if ("error" in s) return fail(s.error, "games");
+  const aWon = s.a > s.b;
+  const won = side === "a" ? aWon : !aWon;
+  const [w, l] = [Math.max(s.a, s.b), Math.min(s.a, s.b)];
   await db.$transaction(async (tx) => {
     const ok = await tx.match.updateMany({ where: { id: m.id, status: { in: [...OPEN] } }, data: { status: "SUBMITTED" } });
     if (!ok.count) throw new Error("déjà déclaré");
     if (m.challengeId) await tx.challenge.update({ where: { id: m.challengeId }, data: { status: "SUBMITTED" } });
-    await tx.resultSubmission.create({ data: { matchId: m.id, uploaderId: userId, fileUrl, declaredA: aWon ? w : l, declaredB: aWon ? l : w, status: "AWAITING_OPPONENT" } });
+    await tx.resultSubmission.create({ data: { matchId: m.id, uploaderId: userId, fileUrl, declaredA: s.a, declaredB: s.b, games: games as object[], status: "AWAITING_OPPONENT" } });
   });
   const mine = side === "a" ? m.a : m.b;
   const other = side === "a" ? m.b : m.a;
-  await logEvent(m.id, "SYSTEM", `Résultat déclaré par ${await entityName(m.game, mine)} : ${won ? "victoire" : "défaite"} ${w}–${l}${fileUrl ? ", capture jointe" : ""}. En attente de confirmation (24 h).`);
+  await logEvent(m.id, "SYSTEM", `Résultat déclaré par ${await entityName(m.game, mine)} : ${won ? "victoire" : "défaite"} ${w}–${l} (${gamesSummary(m.game, games)})${fileUrl ? ", capture jointe" : ""}. En attente de confirmation (24 h).`);
   await notifyEntity(m.game, other, `${await entityName(m.game, mine)} déclare ${won ? "une victoire" : "une défaite"} ${w}–${l}. Confirmez ou contestez sous 24 h.`, `/match?m=${m.id}`);
   return { ok: true, message: "Résultat déclaré : provisoire jusqu’à confirmation adverse (validation automatique sous 24 h)." };
 }
 
 /** Résultat officiel : Elo pour un défi, qualification au tour suivant pour les Playoffs. */
-export async function finalizeMatch(matchId: string, winnerId: string, w: number, l: number, how: "confirmed" | "auto" | "referee") {
+export async function finalizeMatch(matchId: string, winnerId: string, w: number, l: number, how: "confirmed" | "auto" | "referee", games: GameScore[] = []) {
   const m = await db.match.findUnique({ where: { id: matchId } });
   if (!m) return false;
-  if (m.challengeId) return applyResult(m.challengeId, winnerId, w, l, how);
+  if (m.challengeId) return applyResult(m.challengeId, winnerId, w, l, how, games);
   const aWon = winnerId === m.a;
   const claimed = await db.match.updateMany({
     where: { id: m.id, status: { in: ["SCHEDULED", "CHECK_IN", "LIVE", "SUBMITTED", "DISPUTED"] } },
-    data: { status: "DONE", winner: winnerId, scoreA: aWon ? w : l, scoreB: aWon ? l : w, playedAt: new Date() },
+    data: { status: "DONE", winner: winnerId, scoreA: aWon ? w : l, scoreB: aWon ? l : w, playedAt: new Date(), ...(games.length ? { games: games as object[] } : {}) },
   });
   if (!claimed.count) return false;
   await db.resultSubmission.updateMany({ where: { matchId: m.id, status: { in: ["AWAITING_OPPONENT", "REFEREE_REVIEW"] } }, data: { status: how === "auto" ? "AUTO_VALIDATED" : "VALIDATED" } });
@@ -88,7 +98,7 @@ export async function answerMatchResult(userId: string, matchId: string, confirm
   if (!me || me === declaredBy) return fail("Seul l’adversaire confirme ou conteste le résultat.");
   if (confirm) {
     const aWon = sub.declaredA! > sub.declaredB!;
-    await finalizeMatch(m.id, aWon ? m.a : m.b, Math.max(sub.declaredA!, sub.declaredB!), Math.min(sub.declaredA!, sub.declaredB!), "confirmed");
+    await finalizeMatch(m.id, aWon ? m.a : m.b, Math.max(sub.declaredA!, sub.declaredB!), Math.min(sub.declaredA!, sub.declaredB!), "confirmed", readGames(sub.games));
     return { ok: true, message: m.challengeId ? "Résultat confirmé : classement recalculé." : "Résultat confirmé." };
   }
   const why = (reason ?? "").trim();
@@ -114,6 +124,6 @@ export async function settlePlayoffs() {
   for (const m of due) {
     const s = m.submissions[0];
     if (!s || s.declaredA == null || s.declaredB == null) continue;
-    await finalizeMatch(m.id, s.declaredA > s.declaredB ? m.a : m.b, Math.max(s.declaredA, s.declaredB), Math.min(s.declaredA, s.declaredB), "auto");
+    await finalizeMatch(m.id, s.declaredA > s.declaredB ? m.a : m.b, Math.max(s.declaredA, s.declaredB), Math.min(s.declaredA, s.declaredB), "auto", readGames(s.games));
   }
 }

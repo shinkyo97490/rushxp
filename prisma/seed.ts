@@ -6,7 +6,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, GameKind } from "../src/generated/prisma/client";
 import { GAMES } from "../src/lib/data/games";
 import { LOBBY_SCALES } from "../src/lib/rules/scales";
-import { defaultSeason } from "../src/lib/rules/season";
+import { defaultSeason, FIRST_SEASON } from "../src/lib/rules/season";
+import { hashPassword } from "better-auth/crypto";
 
 const db = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL! }),
@@ -30,7 +31,7 @@ async function main() {
   console.log(`Jeux : ${GAMES.length} vérifiés.`);
 
   // Saisons : créées avec le calendrier validé si elles n'existent pas (jamais écrasées, l'admin peut les modifier).
-  const year = new Date().getFullYear();
+  const year = Math.max(FIRST_SEASON, new Date().getFullYear());
   for (const y of [year, year + 1]) {
     const exists = await db.season.findUnique({ where: { year: y } });
     if (exists) continue;
@@ -139,8 +140,55 @@ async function seedLans() {
   }
 }
 
+/**
+ * Comptes d'accès (admin, capitaine, joueur), créés seulement si SEED_ACCOUNTS_PASSWORD est défini
+ * (variable d'environnement, jamais dans le dépôt). Jamais écrasés ensuite : changez le mot de passe sur le site.
+ * Le capitaine dirige la structure « RushXP Team » (roster Valorant), le joueur en fait partie.
+ */
+async function seedAccounts() {
+  const password = process.env.SEED_ACCOUNTS_PASSWORD;
+  if (!password || password.length < 8) return;
+  const hash = await hashPassword(password);
+  const now = new Date();
+  const make = async (pseudo: string, email: string, role: "ADMIN" | "CAPITAINE" | "JOUEUR", intent: string) => {
+    const found = await db.user.findFirst({ where: { OR: [{ pseudo }, { email }] } });
+    if (found) return found;
+    const u = await db.user.create({ data: { pseudo, email, role, intent, emailVerified: true, termsAcceptedAt: now, onboardedAt: now } });
+    await db.account.create({ data: { userId: u.id, accountId: u.id, providerId: "credential", password: hash } });
+    console.log(`Compte ${role.toLowerCase()} « ${pseudo} » créé.`);
+    return u;
+  };
+  await make("AdminRXP", "admin@rushxp.example.com", "ADMIN", "gestionnaire");
+  const cap = await make("CapitaineRXP", "capitaine@rushxp.example.com", "CAPITAINE", "capitaine");
+  const player = await make("JoueurRXP", "joueur@rushxp.example.com", "JOUEUR", "joueur");
+  if (await db.structure.findUnique({ where: { tag: "RXPT" } })) return;
+  const st = await db.structure.create({
+    data: {
+      name: "RushXP Team",
+      tag: "RXPT",
+      bio: "Structure de démonstration pour tester la plateforme.",
+      inviteCode: "RXPT-DEMO",
+      status: "VERIFIED",
+      verifiedAt: now,
+      staff: { create: { userId: cap.id, role: "OWNER" } },
+      members: { create: [{ userId: cap.id }, { userId: player.id }] },
+    },
+  });
+  await db.roster.create({
+    data: {
+      structureId: st.id,
+      game: "val",
+      name: "RushXP Team Valorant",
+      captainId: cap.id,
+      members: { create: [{ userId: cap.id, game: "val" }, { userId: player.id, game: "val" }] },
+    },
+  });
+  console.log("Structure « RushXP Team » créée (capitaine + joueur, roster Valorant).");
+}
+
 main()
   .then(seedLans)
+  .then(seedAccounts)
   .then(seedPartners)
   .catch((e) => {
     console.error(e);

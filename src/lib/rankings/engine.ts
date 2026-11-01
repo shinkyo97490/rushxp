@@ -5,6 +5,7 @@ import { RESPONSE_HOURS } from "@/lib/rules/challenge";
 import { stakes } from "@/lib/rules/elo";
 import { CONFIRM_HOURS, IMMUNITY_HOURS, REMIND_HOURS, daysBetween, inactivityStep, rankOf, resolveMatch } from "@/lib/rules/rankings";
 import { PAIR_WINDOW_DAYS } from "@/lib/rules/challenge";
+import { readGames, type GameScore } from "@/lib/rules/series";
 
 type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 const H = 36e5;
@@ -41,7 +42,7 @@ async function snapshotRanks(tx: Tx, game: string) {
  * Valide un résultat : Elo (si la paire n'a pas déjà 2 matchs comptés sur 30 jours), bilan, placement,
  * immunité du défenseur victorieux, classement recalculé. Idempotent : ne s'applique qu'une fois.
  */
-export async function applyResult(challengeId: string, winnerId: string, scoreW: number, scoreL: number, how: "confirmed" | "auto" | "referee") {
+export async function applyResult(challengeId: string, winnerId: string, scoreW: number, scoreL: number, how: "confirmed" | "auto" | "referee", games: GameScore[] = []) {
   const now = new Date();
   const done = await db.$transaction(async (tx) => {
     const c = await tx.challenge.findUnique({ where: { id: challengeId }, include: { match: true } });
@@ -78,7 +79,7 @@ export async function applyResult(challengeId: string, winnerId: string, scoreW:
     await upd(B, out.deltaB, !aWon, c.defenderId === m.b);
     await tx.match.update({
       where: { id: m.id },
-      data: { status: "DONE", winner: winnerId, scoreA: aWon ? scoreW : scoreL, scoreB: aWon ? scoreL : scoreW, counted: out.counted, deltaA: out.deltaA, deltaB: out.deltaB, playedAt: now },
+      data: { status: "DONE", winner: winnerId, scoreA: aWon ? scoreW : scoreL, scoreB: aWon ? scoreL : scoreW, counted: out.counted, deltaA: out.deltaA, deltaB: out.deltaB, playedAt: now, ...(games.length ? { games: games as object[] } : {}) },
     });
     await tx.resultSubmission.updateMany({ where: { matchId: m.id, status: { in: ["AWAITING_OPPONENT", "REFEREE_REVIEW"] } }, data: { status: how === "auto" ? "AUTO_VALIDATED" : "VALIDATED" } });
     return { c, m, out };
@@ -115,7 +116,7 @@ export async function settleDue(game?: string) {
     const s = c.match?.submissions[0];
     if (!s || s.createdAt.getTime() + CONFIRM_HOURS * H > now.getTime() || s.declaredA == null || s.declaredB == null) continue;
     const aWon = s.declaredA > s.declaredB;
-    await applyResult(c.id, aWon ? c.match!.a : c.match!.b, Math.max(s.declaredA, s.declaredB), Math.min(s.declaredA, s.declaredB), "auto");
+    await applyResult(c.id, aWon ? c.match!.a : c.match!.b, Math.max(s.declaredA, s.declaredB), Math.min(s.declaredA, s.declaredB), "auto", readGames(s.games));
   }
   // 7 jours pour jouer après le créneau : sans déclaration, le défi est annulé sans pénalité.
   await db.challenge.updateMany({ where: { ...where, status: "PLANNED", slot: { lte: new Date(now.getTime() - 7 * 86_400_000) } }, data: { status: "CANCELLED", refusalReason: "Match non joué dans les 7 jours" } });

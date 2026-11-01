@@ -24,6 +24,15 @@ export interface SeasonDef {
   phases: SeasonPhaseDef[];
 }
 
+/** Première saison officielle de la plateforme : 2027. Avant, le site vit en pré-lancement. */
+export const FIRST_SEASON = 2027;
+
+/** Saison de référence à une date : l'année civile à La Réunion, jamais avant la saison de lancement. */
+export function seasonYearAt(d: Date = new Date()) {
+  const y = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(d));
+  return Math.max(FIRST_SEASON, y);
+}
+
 /** La Réunion : UTC+4, sans heure d'été. */
 export const TIME_ZONE = "Indian/Reunion";
 const TZ_OFFSET = "+04:00";
@@ -60,7 +69,7 @@ export function defaultSeason(year: number): SeasonDef {
       {
         kind: "PLAYOFFS",
         label: "Playoffs",
-        description: "Top 8 de la Division 1, élimination directe. 2 500 € de cashprize.",
+        description: "Top 8 de la Division 1, élimination directe. 2 500 € de cashprize à partager pour les tops de la Division 1.",
         startsAt: at(year, 9, 1),
         endsAt: endOfMonth(year, 12),
         countsForGeneral: true,

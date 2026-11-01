@@ -10,7 +10,6 @@ import { eligibility, fmtScore, ordinal, zoneText, type ChallengeItem, type Elig
 import {
   answerResultAction,
   cancelChallengeAction,
-  declareResultAction,
   enterRankingsAction,
   respondChallengeAction,
   sendChallengeAction,
@@ -38,6 +37,7 @@ interface Props {
   challenges: ChallengeItem[];
   enterable: { id: string; label: string }[];
   generalRank: { label: string; structure: string } | null;
+  seedingDates: { official: string; preseason: string };
 }
 
 const TAB_PATH: Record<RankingsTab, [string, string]> = {
@@ -72,12 +72,11 @@ function slotDefault(days: number) {
 
 type Dialog =
   | { kind: "send"; opp: RankingRow }
-  | { kind: "declare"; c: ChallengeItem }
   | { kind: "refuse"; c: ChallengeItem }
   | { kind: "contest"; c: ChallengeItem }
   | null;
 
-export function RankingsClient({ tab, game, role, canAct, rows, challenges: list, enterable, generalRank }: Props) {
+export function RankingsClient({ tab, game, role, canAct, rows, challenges: list, enterable, generalRank, seedingDates }: Props) {
   const router = useRouter();
   const me = rows.find((r) => r.isMe) ?? null;
   const el = useMemo(() => (me ? eligibility(rows, list, canAct, game.solo) : null), [me, rows, list, canAct, game.solo]);
@@ -170,7 +169,7 @@ export function RankingsClient({ tab, game, role, canAct, rows, challenges: list
                       run: () => run(() => respondChallengeAction({ id: c.id, refuse: "unjustified" })),
                     }),
                   cancel: (c) => run(() => cancelChallengeAction(c.id)),
-                  declare: (c) => setDialog({ kind: "declare", c }),
+                  declare: (c) => router.push(c.matchId ? `/match?m=${c.matchId}` : "/calendrier"),
                   confirmResult: (c) => run(() => answerResultAction({ id: c.id, confirm: true })),
                   contest: (c) => setDialog({ kind: "contest", c }),
                 }}
@@ -181,7 +180,7 @@ export function RankingsClient({ tab, game, role, canAct, rows, challenges: list
               </div>
             ))}
           {tab === "divisions" && <Divisions rows={rows} solo={game.solo} />}
-          {tab === "seeding" && <Seeding rows={rows} game={game} />}
+          {tab === "seeding" && <Seeding rows={rows} game={game} dates={seedingDates} />}
         </>
       )}
 
@@ -216,14 +215,10 @@ function EnterCard({ game, options, pending, onEnter }: { game: GameInfo; option
 /** Fenêtres d'action : créneaux d'un défi, déclaration du résultat, refus motivé, contestation. */
 function ActionDialog({ gameId, dialog, close, pending, el, byId, run }: { gameId: string; dialog: Dialog; close: () => void; pending: boolean; el: Eligibility | null; byId: Map<string, RankingRow>; run: (p: () => Promise<RankResult>, after?: () => void) => void }) {
   const [slots, setSlots] = useState(() => [2, 3, 4].map(slotDefault));
-  const [won, setWon] = useState(true);
-  const [score, setScore] = useState(0);
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | undefined>();
   const reset = () => {
     setSlots([2, 3, 4].map(slotDefault));
-    setWon(true);
-    setScore(0);
     setText("");
     setErr(undefined);
     close();
@@ -253,27 +248,6 @@ function ActionDialog({ gameId, dialog, close, pending, el, byId, run }: { gameI
             </label>
           ))}
         </div>
-        <div className="mt-2"><FormError message={err} /></div>
-      </Modal>
-    );
-  }
-  if (dialog.kind === "declare") {
-    const scores = dialog.c.scores ?? [[1, 0]];
-    const [w, l] = scores[Math.min(score, scores.length - 1)];
-    return (
-      <Modal open onClose={reset} title={`Résultat contre ${byId.get(dialog.c.oppId)?.name ?? "l’adversaire"}`} footer={btn("Déclarer le résultat", () => submit(() => declareResultAction({ id: dialog.c.id, won, score: [w, l] })))}>
-        <div className="flex gap-2" role="group" aria-label="Issue">
-          {[true, false].map((v) => (
-            <button key={String(v)} type="button" aria-pressed={won === v} onClick={() => setWon(v)} className={`btn btn-sm flex-1 ${won === v ? "btn-primary" : "btn-tertiary"}`}>{v ? "Victoire" : "Défaite"}</button>
-          ))}
-        </div>
-        <label className="mt-3 grid gap-1 text-xs text-grey">
-          Score de la série
-          <select className="field" value={score} onChange={(e) => setScore(Number(e.target.value))}>
-            {scores.map(([a, b], i) => <option key={i} value={i}>{won ? `${a}–${b}` : `${b}–${a}`}</option>)}
-          </select>
-        </label>
-        <p className="mt-3 text-xs">Le résultat reste provisoire : l’adversaire a 24 h pour confirmer ou contester. Sans réponse, il est validé automatiquement.</p>
         <div className="mt-2"><FormError message={err} /></div>
       </Modal>
     );
@@ -483,7 +457,7 @@ function ChallengeCenter({ game, me, rows, list, byId, el, pending, send, act }:
         { l: "Refuser sans motif", kind: "d", go: () => act.refuseUnjustified(c) },
       ];
     if (c.status === "PENDING" && c.dir === "out") return [{ l: "Annuler", kind: "t", go: () => act.cancel(c) }];
-    if (c.status === "PLANNED" && c.canDeclare) return [{ l: "Déclarer le résultat", kind: "p", go: () => act.declare(c) }];
+    if (c.status === "PLANNED" && c.canDeclare) return [{ l: "Déclarer le résultat (Match Center)", kind: "p", go: () => act.declare(c) }];
     if (c.status === "SUBMITTED" && c.canConfirm)
       return [
         { l: "Confirmer le résultat", kind: "p", go: () => act.confirmResult(c) },
@@ -681,15 +655,15 @@ function Divisions({ rows, solo }: { rows: RankingRow[]; solo: boolean }) {
   );
 }
 
-function Seeding({ rows, game }: { rows: RankingRow[]; game: GameInfo }) {
+function Seeding({ rows, game, dates }: { rows: RankingRow[]; game: GameInfo; dates: Props["seedingDates"] }) {
   const seeds = rows.filter((r) => !r.inPlacement);
   return (
     <div className="mt-4 grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))] lg:grid-cols-[320px_minmax(0,1fr)]">
       <section className="card">
         <div className="card-head"><span className="card-title">Seedings</span></div>
         {[
-          ["Seeding officiel · fin de saison régulière", "Officiel · 31 août 2026 · 23:59", "Tableau des Playoffs (top 8 D1)", true],
-          ["Seeding · fin de pré-saison", "Indicatif · 30 avr. 2026 · 23:59", "Divisions de départ de la saison régulière", false],
+          ["Seeding officiel · fin de saison régulière", `Officiel · ${dates.official}`, "Tableau des Playoffs (top 8 D1)", true],
+          ["Seeding · fin de pré-saison", `Indicatif · ${dates.preseason}`, "Divisions de départ de la saison régulière", false],
         ].map(([n, d, u, on]) => (
           <div key={n as string} className={`border-b border-l-[3px] border-b-surface-2 px-[18px] py-3 ${on ? "border-l-orange bg-surface-2" : "border-l-transparent"}`}>
             <div className="text-sm font-semibold">{n}</div>
@@ -702,7 +676,7 @@ function Seeding({ rows, game }: { rows: RankingRow[]; game: GameInfo }) {
         <div className="card-head">
           <div className="min-w-[220px] flex-1">
             <div className="card-title">Seeding officiel · fin de saison régulière</div>
-            <div className="text-xs text-grey">Référence 31 août 2026 · 23:59 · {game.name} · Océan Indien</div>
+            <div className="text-xs text-grey">Référence {dates.official} · {game.name} · Océan Indien</div>
           </div>
           <span className="badge text-orange">Aperçu</span>
         </div>

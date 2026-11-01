@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { CHALLENGE_GAMES, getGame } from "@/lib/data/games";
-import { getSeason } from "@/lib/season";
+import { getSeason, seasonYearAt } from "@/lib/season";
 import { rankingRows } from "@/lib/rankings/queries";
 import { notifyEntity } from "@/lib/rankings/engine";
 import { namesFor } from "@/lib/matches/queries";
@@ -89,7 +89,7 @@ export async function getPlayoffs(game: string, year: number) {
 
 /** Tâche quotidienne : seeding figé à la date de référence (dans les 7 jours qui suivent), puis tableau. */
 export async function dailyPlayoffs(now = new Date()) {
-  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(now));
+  const year = seasonYearAt(now);
   const season = await getSeason(year);
   const late = now.getTime() - season.seedingAt.getTime();
   if (late < 0 || late > 7 * 86_400_000) return { year, frozen: 0 };

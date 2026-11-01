@@ -8,7 +8,7 @@ import { MAX_PENDING_OUT, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY, challenge
 import { START_SCORE, stakes } from "@/lib/rules/elo";
 import { eligibility } from "@/lib/rankings-model";
 import { entityName, notifyEntity, recipients, settleDue } from "./engine";
-import { answerMatchResult, declareMatchResult } from "@/lib/matches/results";
+import { answerMatchResult } from "@/lib/matches/results";
 import { challengeItems, myEntities, rankingRows } from "./queries";
 
 export type RankResult = { ok: true; message?: string } | { ok: false; errors: Record<string, string> };
@@ -136,16 +136,6 @@ export async function cancelChallengeAction(id: string): Promise<RankResult> {
 }
 
 /** Déclaration du résultat après le créneau. Provisoire jusqu'à confirmation adverse (ou 24 h). */
-export async function declareResultAction(input: { id: string; won: boolean; score: [number, number] }): Promise<RankResult> {
-  const v = await getViewer();
-  if (!v) return fail("Session expirée.");
-  const c = await loadChallenge(input.id);
-  if (!c?.match) return fail("Match introuvable.");
-  const r = await declareMatchResult(v.id, c.match.id, input.won, input.score);
-  if (r.ok) refresh(c.game);
-  return r;
-}
-
 /** L'adversaire confirme (classement recalculé) ou conteste (arbitre). */
 export async function answerResultAction(input: { id: string; confirm: boolean; reason?: string }): Promise<RankResult> {
   const v = await getViewer();

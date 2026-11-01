@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { getViewer } from "@/lib/auth/viewer";
+import { seasonYearAt } from "@/lib/rules/season";
 import { GAMES, getGame } from "@/lib/data/games";
 import { achievements, playerLeaderboard } from "@/lib/players";
 import { ClassementTabs } from "@/components/ClassementTabs";
@@ -14,7 +15,7 @@ const pct = (w: number, n: number) => (n ? `${Math.round((w / n) * 100)} %` : "â
 export default async function MvpPage({ searchParams }: { searchParams: Promise<{ jeu?: string }> }) {
   const { jeu } = await searchParams;
   const game = getGame(jeu ?? "")?.id ?? "all";
-  const year = Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion", year: "numeric" }).format(new Date()));
+  const year = seasonYearAt();
   const rows = (await playerLeaderboard(year, game === "all" ? undefined : game)).slice(0, 50);
   const viewer = await getViewer();
   const badges = viewer ? await achievements(viewer.id, year) : null;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GUIDE } from "@/lib/data/content";
-import { getSeason } from "@/lib/season";
+import { getSeason, seasonYearAt } from "@/lib/season";
 import { SeasonTimeline } from "@/components/SeasonTimeline";
 import { TabLinks } from "@/components/PageHeader";
 
@@ -13,7 +13,7 @@ export default async function CircuitPage({ searchParams }: { searchParams: Prom
   const g = GUIDE[tab];
   const faq = tab === "faq";
   const now = new Date();
-  const season = await getSeason(now.getFullYear());
+  const season = await getSeason(seasonYearAt(now));
   return (
     <main className="mx-auto max-w-[1100px] px-[clamp(16px,3vw,40px)] pt-7 pb-16">
       <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-grey">Guide RushXP · {season.name.toLowerCase()}</div>
@@ -22,7 +22,7 @@ export default async function CircuitPage({ searchParams }: { searchParams: Prom
         <Link href="/reglement" className="text-sm font-semibold">Lire le règlement complet →</Link>
       </div>
       <p className="mt-3 max-w-[760px] text-[16px] text-silver">
-        Un classement permanent par jeu, des défis toute l’année en divisions de 8, une pré-saison pour se placer, une saison régulière qui compte, puis des Playoffs pour le top 8 de la Division 1, avec 2 500 € de cashprize.
+        Un classement permanent par jeu, des défis toute l’année en divisions de 8, une pré-saison pour se placer, une saison régulière qui compte, puis des Playoffs pour le top 8 de la Division 1, avec 2 500 € de cashprize à partager pour les tops de la Division 1.
       </p>
       <div className="mt-5">
         <SeasonTimeline phases={season.phases} now={now} compact />

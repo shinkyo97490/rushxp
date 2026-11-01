@@ -3,6 +3,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { loadRankingsPage } from "@/lib/rankings/queries";
 import { getGeneralStandings } from "@/lib/rankings/standings";
 import { rankLabel } from "@/lib/rules/standings";
+import { getSeason, seasonYearAt } from "@/lib/season";
 import { ClassementTabs } from "@/components/ClassementTabs";
 import { GameSelect } from "./GameSelect";
 import { RankingsClient, type RankingsTab } from "./RankingsClient";
@@ -13,6 +14,9 @@ export async function RankingsPage({ tab, searchParams }: { tab: RankingsTab; se
   const game = found && found.kind === "challenge" ? found : CHALLENGE_GAMES[0];
   const viewer = await getViewer();
   const solo = isSolo(game);
+  const season = await getSeason(seasonYearAt());
+  const D = (d: Date) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(d).replace(" à ", " · ");
+  const pre = season.phases.find((p) => p.kind === "PRESEASON");
   const data = await loadRankingsPage(game.id, viewer);
   const general = data.me?.structureId ? (await getGeneralStandings()).list.find((s) => s.structureId === data.me!.structureId) : undefined;
 
@@ -41,6 +45,7 @@ export async function RankingsPage({ tab, searchParams }: { tab: RankingsTab; se
         rows={data.rows}
         challenges={data.challenges}
         enterable={data.enterable.map((e) => ({ id: e.id, label: e.label }))}
+        seedingDates={{ official: D(season.seedingAt), preseason: pre ? D(new Date(pre.endsAt.getTime() - 59_999)) : "—" }}
         generalRank={general ? { label: rankLabel(general), structure: general.structure.name } : null}
       />
     </main>

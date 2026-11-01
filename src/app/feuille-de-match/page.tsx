@@ -8,6 +8,7 @@ import { calendarItems } from "@/lib/matches/queries";
 import { getMatchRoom } from "@/lib/matches/room";
 import { playedMaps } from "@/lib/rules/veto";
 import { Empty, PageHeader } from "@/components/PageHeader";
+import { SeriesTable } from "@/components/match/SeriesGames";
 
 export const metadata: Metadata = { title: "Feuille de match" };
 
@@ -70,6 +71,7 @@ export default async function FeuillePage({ searchParams }: { searchParams: Prom
       </section>
 
       <div className="mt-4 grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))]">
+        {m.games.length > 0 && <SeriesTable game={m.game} games={m.games} names={{ a: m.a.name, b: m.b.name }} />}
         {maps.length > 0 && (
           <section className="card">
             <div className="card-head"><span className="card-title">Cartes</span><span className="card-meta">Veto</span></div>
