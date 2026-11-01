@@ -339,3 +339,17 @@ describe("RDV mensuels", () => {
     expect(tftLobbies(Array.from({ length: 19 }, (_, i) => i)).map((l) => l.length)).toEqual([8, 8, 3]);
   });
 });
+
+import { createHmac } from "node:crypto";
+import { verifyStripeSignature } from "@/lib/integrations/stripe";
+
+describe("webhook Stripe", () => {
+  const secret = "whsec_test", body = '{"type":"checkout.session.completed"}', t = 1_800_000_000;
+  const sig = createHmac("sha256", secret).update(`${t}.${body}`).digest("hex");
+  it("signature valide acceptée, altérée ou périmée refusée", () => {
+    expect(verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, t + 10)).toBe(true);
+    expect(verifyStripeSignature(body + " ", `t=${t},v1=${sig}`, secret, t + 10)).toBe(false);
+    expect(verifyStripeSignature(body, `t=${t},v1=${sig}`, secret, t + 3600)).toBe(false);
+    expect(verifyStripeSignature(body, null, secret, t)).toBe(false);
+  });
+});

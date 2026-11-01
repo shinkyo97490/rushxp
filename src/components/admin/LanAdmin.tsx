@@ -5,6 +5,7 @@ import { useState } from "react";
 import { saveLanAction, saveLanResultsAction, validateLanResultsAction } from "@/lib/lan/actions";
 import { Field, FormError, Select, TextArea, TextInput } from "@/components/forms";
 import { Button } from "@/components/ui";
+import { ImageUpload } from "@/components/ImageUpload";
 import { useServerAction } from "@/components/useServerAction";
 
 export interface LanForm {
@@ -76,7 +77,10 @@ export function LanEditor({ initial, games }: { initial: LanForm; games: { id: s
         <Field label="Lieu *" error={e.place}>{(p) => <TextInput {...p} value={f.place} onChange={(x) => set("place", x.target.value)} placeholder="Ville, salle" />}</Field>
         <Field label="Début" hint="Heure de La Réunion" error={e.startsAt}>{(p) => <TextInput {...p} type="datetime-local" value={f.startsAt} onChange={(x) => set("startsAt", x.target.value)} />}</Field>
         <Field label="Fin" error={e.endsAt}>{(p) => <TextInput {...p} type="datetime-local" value={f.endsAt} onChange={(x) => set("endsAt", x.target.value)} />}</Field>
-        <Field label="Affiche (URL)" hint="Chemin /assets/… ou https://" error={e.posterUrl}>{(p) => <TextInput {...p} value={f.posterUrl} onChange={(x) => set("posterUrl", x.target.value)} placeholder="/assets/photo-dsc05885.jpg" />}</Field>
+        <div className="grid gap-1.5">
+          <Field label="Affiche (URL)" hint="Chemin /assets/… ou https://" error={e.posterUrl}>{(p) => <TextInput {...p} value={f.posterUrl} onChange={(x) => set("posterUrl", x.target.value)} placeholder="/assets/photo-dsc05885.jpg" />}</Field>
+          <ImageUpload folder="lan" label="Envoyer l’affiche" onUploaded={(u) => set("posterUrl", u)} />
+        </div>
         <div className="col-span-full">
           <Field label="Description" error={e.description}>{(p) => <TextArea {...p} rows={4} value={f.description} onChange={(x) => set("description", x.target.value)} placeholder="Présentation, ambiance, diffusion…" />}</Field>
         </div>

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { saveCampaignAction, saveCompetitionTextAction, saveHomeAction, savePartnerAction, setMaintenanceAction } from "@/lib/site/actions";
 import { useServerAction } from "@/components/useServerAction";
 import { Field, FormError, Select, TextArea, TextInput } from "@/components/forms";
+import { ImageUpload } from "@/components/ImageUpload";
 
 function Done({ a }: { a: { message: string | null; errors: Record<string, string> } }) {
   return (
@@ -48,6 +49,7 @@ export function HomeEditor({ initial, allBlocks, lans }: { initial: HomeForm; al
         <Field label="Suite du titre (en orange)" error={a.errors.accent}>{(p) => <TextInput {...p} value={f.accent} onChange={(e) => set("accent", e.target.value)} />}</Field>
         <Field label="Sous-titre" error={a.errors.subtitle}>{(p) => <TextArea {...p} rows={3} value={f.subtitle} onChange={(e) => set("subtitle", e.target.value)} />}</Field>
         <Field label="Visuel (chemin ou https://)" error={a.errors.heroImage}>{(p) => <TextInput {...p} value={f.heroImage} onChange={(e) => set("heroImage", e.target.value)} />}</Field>
+        <ImageUpload folder="accueil" onUploaded={(u) => set("heroImage", u)} />
         <div className="overline mt-2">2 · Mises en avant</div>
         <Field label="Bannière LAN sous le héros" hint="Par défaut : la prochaine LAN annoncée ou ouverte.">
           {(p) => (
@@ -131,6 +133,7 @@ export function PartnerEditor({ initial }: { initial: PartnerFormData }) {
         <Field label="Logo (PNG transparent) *" error={a.errors.logoUrl}>{(p) => <TextInput {...p} value={f.logoUrl} onChange={(e) => set("logoUrl", e.target.value)} placeholder="/assets/partner-….png" />}</Field>
         <Field label="Ordre" error={a.errors.order}>{(p) => <TextInput {...p} type="number" min={0} value={f.order} onChange={(e) => set("order", e.target.value)} />}</Field>
       </div>
+      <ImageUpload folder="partenaires" label="Envoyer le logo" onUploaded={(u) => set("logoUrl", u)} />
       <Field label="Description" error={a.errors.description}>{(p) => <TextArea {...p} rows={2} value={f.description} onChange={(e) => set("description", e.target.value)} />}</Field>
       <div className="flex flex-wrap gap-5">
         <Toggle checked={f.band} onChange={(v) => set("band", v)}>Bande partenaires de l’accueil</Toggle>
@@ -178,6 +181,7 @@ export function CampaignEditor({ initial, partners, slots }: { initial: Campaign
         <Field label="Début *" error={a.errors.startsOn}>{(p) => <TextInput {...p} type="date" value={f.startsOn} onChange={(e) => set("startsOn", e.target.value)} />}</Field>
         <Field label="Fin" error={a.errors.endsOn}>{(p) => <TextInput {...p} type="date" value={f.endsOn} onChange={(e) => set("endsOn", e.target.value)} />}</Field>
       </div>
+      <ImageUpload folder="publicites" label="Envoyer le visuel" onUploaded={(u) => set("imageUrl", u)} />
       <Field label="Texte affiché *" error={a.errors.title}>{(p) => <TextInput {...p} value={f.title} onChange={(e) => set("title", e.target.value)} />}</Field>
       <Toggle checked={f.active} onChange={(v) => set("active", v)}>Campagne active</Toggle>
       <div className="flex flex-wrap items-center gap-3">

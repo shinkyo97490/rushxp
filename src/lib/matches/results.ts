@@ -4,6 +4,7 @@ import { seriesScores, CONFIRM_HOURS } from "@/lib/rules/rankings";
 import { nextRound } from "@/lib/rules/playoffs";
 import { applyResult, entityName, notifyEntity, recipients } from "@/lib/rankings/engine";
 import { logEvent } from "./room";
+import { isUploadedUrl } from "@/lib/integrations";
 
 export type Outcome = { ok: true; message?: string } | { ok: false; errors: Record<string, string> };
 const fail = (m: string, field = "_"): Outcome => ({ ok: false, errors: { [field]: m } });
@@ -16,7 +17,8 @@ async function sideFor(m: { game: string; a: string; b: string }, userId: string
 }
 
 /** Déclaration du résultat par un camp, après l'heure du match. Provisoire jusqu'à confirmation (ou 24 h). */
-export async function declareMatchResult(userId: string, matchId: string, won: boolean, score: [number, number]): Promise<Outcome> {
+export async function declareMatchResult(userId: string, matchId: string, won: boolean, score: [number, number], fileUrl = ""): Promise<Outcome> {
+  if (fileUrl && !isUploadedUrl(fileUrl)) return fail("Capture invalide.");
   const m = await db.match.findUnique({ where: { id: matchId } });
   if (!m) return fail("Match introuvable.");
   const side = await sideFor(m, userId);
@@ -30,11 +32,11 @@ export async function declareMatchResult(userId: string, matchId: string, won: b
     const ok = await tx.match.updateMany({ where: { id: m.id, status: { in: [...OPEN] } }, data: { status: "SUBMITTED" } });
     if (!ok.count) throw new Error("déjà déclaré");
     if (m.challengeId) await tx.challenge.update({ where: { id: m.challengeId }, data: { status: "SUBMITTED" } });
-    await tx.resultSubmission.create({ data: { matchId: m.id, uploaderId: userId, fileUrl: "", declaredA: aWon ? w : l, declaredB: aWon ? l : w, status: "AWAITING_OPPONENT" } });
+    await tx.resultSubmission.create({ data: { matchId: m.id, uploaderId: userId, fileUrl, declaredA: aWon ? w : l, declaredB: aWon ? l : w, status: "AWAITING_OPPONENT" } });
   });
   const mine = side === "a" ? m.a : m.b;
   const other = side === "a" ? m.b : m.a;
-  await logEvent(m.id, "SYSTEM", `Résultat déclaré par ${await entityName(m.game, mine)} : ${won ? "victoire" : "défaite"} ${w}–${l}. En attente de confirmation (24 h).`);
+  await logEvent(m.id, "SYSTEM", `Résultat déclaré par ${await entityName(m.game, mine)} : ${won ? "victoire" : "défaite"} ${w}–${l}${fileUrl ? ", capture jointe" : ""}. En attente de confirmation (24 h).`);
   await notifyEntity(m.game, other, `${await entityName(m.game, mine)} déclare ${won ? "une victoire" : "une défaite"} ${w}–${l}. Confirmez ou contestez sous 24 h.`, `/match?m=${m.id}`);
   return { ok: true, message: "Résultat déclaré : provisoire jusqu’à confirmation adverse (validation automatique sous 24 h)." };
 }

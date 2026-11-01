@@ -95,7 +95,7 @@ export async function getMatchRoom(matchId: string, viewer: Viewer | null) {
     challengeId: m.challenge?.id ?? null,
     challengeStatus: m.challenge?.status ?? null,
     submission: sub
-      ? { declaredA: sub.declaredA, declaredB: sub.declaredB, status: sub.status, by: sub.uploader.pseudo, side: (await sideOf(m, sub.uploaderId)).side, dispute: sub.disputes[0]?.reason ?? null, decision: sub.disputes[0]?.decision ?? null }
+      ? { declaredA: sub.declaredA, declaredB: sub.declaredB, status: sub.status, by: sub.uploader.pseudo, fileUrl: sub.fileUrl || null, side: (await sideOf(m, sub.uploaderId)).side, dispute: sub.disputes[0]?.reason ?? null, decision: sub.disputes[0]?.decision ?? null }
       : null,
     veto: hasVeto(m.game) ? { steps: (m.veto?.steps as VetoStep[] | undefined) ?? [], pool } : null,
     streams: (m.streamLinks as { platform: string; url: string }[]) ?? [],

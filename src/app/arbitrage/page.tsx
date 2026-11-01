@@ -159,7 +159,7 @@ export default async function ArbitragePage({ searchParams }: { searchParams: Pr
                 {[
                   [`Déclaré par ${dispute.d.submission.uploader.pseudo}`, `${names.get(dispute.m.a)?.name} ${dispute.d.submission.declaredA ?? "?"} – ${dispute.d.submission.declaredB ?? "?"} ${names.get(dispute.m.b)?.name}`, false],
                   [`Contesté par ${dispute.d.openedBy.pseudo}`, dispute.d.reason, true],
-                  ["Capture", dispute.d.submission.fileUrl ? "jointe" : "à demander dans le salon", !dispute.d.submission.fileUrl],
+                  ["Capture", dispute.d.submission.fileUrl ? <a key="c" href={dispute.d.submission.fileUrl} target="_blank" rel="noopener noreferrer">Ouvrir la capture →</a> : "à demander dans le salon", !dispute.d.submission.fileUrl],
                 ].map(([k, v, warn]) => (
                   <div key={k as string} className="flex justify-between gap-3 border-b border-surface-2 py-1.5 text-sm">
                     <span className="text-grey">{k}</span>

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { toFieldErrors, type FieldErrors } from "@/lib/validation";
 import { POST_IMAGES } from "./images";
+import { isUploadedUrl } from "@/lib/integrations";
 
 export type FeedResult = { ok: true; message?: string; id?: string } | { ok: false; errors: FieldErrors };
 const fail = (m: string, f = "_"): FeedResult => ({ ok: false, errors: { [f]: m } });
@@ -20,7 +21,7 @@ const postSchema = z
     pinned: z.boolean().optional().default(false),
   })
   .refine((p) => p.kind !== "SONDAGE" || p.options.length >= 2, { path: ["options"], message: "Un sondage a au moins 2 options." })
-  .refine((p) => !p.image || (POST_IMAGES as readonly string[]).includes(p.image), { path: ["image"], message: "Visuel non autorisé." });
+  .refine((p) => !p.image || (POST_IMAGES as readonly string[]).includes(p.image) || isUploadedUrl(p.image), { path: ["image"], message: "Visuel non autorisé." });
 
 /** Publication : officielle (admin) ou au nom de sa structure (gestionnaire d'une structure vérifiée). */
 export async function createPostAction(input: unknown): Promise<FeedResult> {

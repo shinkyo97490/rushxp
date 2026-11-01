@@ -10,6 +10,7 @@ import { availableMaps, CDL_MODES, nextStep, playedMaps, type CdlMode } from "@/
 import { STREAM_PLATFORMS } from "@/lib/rules/streams";
 import { ChatMessage } from "@/components/ui/blocks";
 import { FormError } from "@/components/forms";
+import { ImageUpload } from "@/components/ImageUpload";
 
 const time = (iso: string) => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(new Date(iso));
 const when = (iso: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(new Date(iso));
@@ -216,6 +217,7 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
   const [si, setSi] = useState(0);
   const [reason, setReason] = useState("");
   const [winner, setWinner] = useState<"a" | "b">("a");
+  const [proof, setProof] = useState("");
   const [err, setErr] = useState<string>();
   const [w, l] = m.scores[Math.min(si, m.scores.length - 1)];
   const started = m.started;
@@ -253,6 +255,7 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
     const canAnswer = sub.status === "AWAITING_OPPONENT" && m.viewer.lead && !!m.viewer.side && m.viewer.side !== sub.side;
     body = (
       <div className="grid gap-3 text-sm">
+        {sub.fileUrl && <a href={sub.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[13px]">Voir la capture jointe →</a>}
         <p>Résultat déclaré par <strong>{sub.by}</strong> : victoire <strong>{aWon ? m.a.name : m.b.name}</strong> {Math.max(sub.declaredA ?? 0, sub.declaredB ?? 0)}–{Math.min(sub.declaredA ?? 0, sub.declaredB ?? 0)}. Provisoire : l’adversaire a 24 h pour confirmer ou contester.</p>
         {canAnswer && (
           <div className="grid gap-2">
@@ -274,9 +277,10 @@ function Result({ m, pending, run }: { m: MatchRoomData; pending: boolean; run: 
         <div className="flex flex-wrap gap-1.5">
           {[true, false].map((v) => <button key={String(v)} type="button" aria-pressed={won === v} onClick={() => setWon(v)} className={`btn btn-sm ${won === v ? "btn-primary" : "btn-tertiary"}`}>{v ? "Victoire" : "Défaite"}</button>)}
           <select className="field !h-9" aria-label="Score" value={si} onChange={(e) => setSi(Number(e.target.value))}>{m.scores.map(([x, y], i) => <option key={i} value={i}>{won ? `${x}–${y}` : `${y}–${x}`}</option>)}</select>
-          <button className="btn btn-secondary btn-sm" disabled={pending} onClick={() => run(async () => { const r = await declareMatchAction({ matchId: m.id, won, score: [w, l] }); if (!r.ok) setErr(Object.values(r.errors)[0]); return r; })}>Déclarer</button>
+          <button className="btn btn-secondary btn-sm" disabled={pending} onClick={() => run(async () => { const r = await declareMatchAction({ matchId: m.id, won, score: [w, l], fileUrl: proof || undefined }); if (!r.ok) setErr(Object.values(r.errors)[0]); return r; })}>Déclarer</button>
         </div>
-        <p className="text-xs text-grey">Joignez la capture de fin de partie dans le salon. Le résultat reste provisoire jusqu’à confirmation.</p>
+        <ImageUpload folder="captures" label={proof ? "✓ Capture jointe · remplacer" : "Joindre la capture de fin de partie"} onUploaded={setProof} />
+        <p className="text-xs text-grey">Le résultat reste provisoire jusqu’à confirmation de l’adversaire (ou 24 h).</p>
         <FormError message={err} />
       </div>
     ) : (

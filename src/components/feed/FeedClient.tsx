@@ -15,6 +15,7 @@ import {
   votePollAction,
 } from "@/lib/feed/actions";
 import { POST_IMAGES } from "@/lib/feed/images";
+import { ImageUpload } from "@/components/ImageUpload";
 import { Field, FormError, Select, TextArea, TextInput } from "@/components/forms";
 import { useServerAction } from "@/components/useServerAction";
 
@@ -222,7 +223,10 @@ export function Composer({ official, structureName }: { official: boolean; struc
             </button>
           ))}
         </div>
-        <span className="text-xs text-grey">L’envoi de vos propres images arrive avec le stockage des médias.</span>
+        {f.image && !(POST_IMAGES as readonly string[]).includes(f.image) && (
+          <div className="relative aspect-video max-w-[240px] border border-orange"><Image src={f.image} alt="Visuel envoyé" fill className="object-cover" sizes="240px" /></div>
+        )}
+        <ImageUpload folder="fil" onUploaded={(url) => setF({ ...f, image: url })} label="Envoyer ma propre image" />
       </div>
       {official && (
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.pinned} onChange={(e) => setF({ ...f, pinned: e.target.checked })} /> Épingler en haut du fil</label>

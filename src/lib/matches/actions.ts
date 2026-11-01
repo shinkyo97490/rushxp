@@ -125,10 +125,10 @@ export async function refereeDecisionAction(input: { matchId: string; winner: "a
   return done(m.challenge ? "Décision enregistrée : classement recalculé." : "Décision enregistrée.");
 }
 
-export async function declareMatchAction(input: { matchId: string; won: boolean; score: [number, number] }): Promise<MatchResult> {
+export async function declareMatchAction(input: { matchId: string; won: boolean; score: [number, number]; fileUrl?: string }): Promise<MatchResult> {
   const v = await getViewer();
   if (!v) return fail("Session expirée.");
-  const r = await declareMatchResult(v.id, input.matchId, input.won, input.score);
+  const r = await declareMatchResult(v.id, input.matchId, input.won, input.score, input.fileUrl ?? "");
   if (r.ok) revalidatePath("/rankings/defis");
   return r.ok ? done(r.message) : r;
 }

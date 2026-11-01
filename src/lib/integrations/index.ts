@@ -1,8 +1,12 @@
 /**
  * Intégrations externes, isolées derrière des interfaces. En développement (ou tant qu'une intégration
  * n'est pas configurée), une implémentation « mock » prend le relais : le site reste utilisable et testable.
- * Les adaptateurs réels (Ably, Stripe, Vercel Blob, Resend, moteur OCR) sont branchés lot par lot.
+ * Stripe, Vercel Blob et Resend s'activent dès que leurs clés sont présentes ; temps réel (Ably) et OCR restent simulés.
  */
+
+import { stripePayments } from "./stripe";
+import { resendEmail } from "./resend";
+import { blobStorage } from "./blob";
 
 // ─── Temps réel (chat de match, veto, check-in, notifications) ──
 
@@ -138,11 +142,23 @@ export function integrationStatus() {
   ];
 }
 
-/** Implémentations actives : les adaptateurs réels remplaceront les mocks dès qu'ils seront branchés. */
+/** Implémentations actives : l'adaptateur réel dès que ses clés sont configurées, sinon la version simulée. */
+const has = (...k: string[]) => k.every((x) => !!process.env[x]);
 export const integrations = {
   realtime: mocks.realtime as Realtime,
   ocr: mocks.ocr as Ocr,
-  payments: mocks.payments as Payments,
-  storage: mocks.storage as Storage,
-  email: mocks.email as Email,
+  get payments(): Payments {
+    return has("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET") ? stripePayments : mocks.payments;
+  },
+  get storage(): Storage {
+    return has("BLOB_READ_WRITE_TOKEN") ? blobStorage : mocks.storage;
+  },
+  get email(): Email {
+    return has("RESEND_API_KEY") ? resendEmail : mocks.email;
+  },
 };
+
+/** URL d'un média envoyé sur le stockage (Vercel Blob). */
+export function isUploadedUrl(u: string) {
+  return /^https:\/\/[a-z0-9-]+\.public\.blob\.vercel-storage\.com\//i.test(u);
+}

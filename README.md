@@ -112,6 +112,12 @@ Chaque écran du prototype a sa route.
 - Playoffs : seeding figé (SHA-256), quarts générés, qualification automatique. RDV mensuels : saisie arbitre manche par manche.
 - Administration : compétitions, page d’accueil, partenaires, publicités (impressions et clics), map pool et cycles, maintenance.
 
+**Brancher les services réels** (aucune modification de code : ajouter les variables sur Vercel puis redéployer)
+- **Stripe** (inscriptions LAN) : `STRIPE_SECRET_KEY`, puis un webhook vers `https://rushxp.vercel.app/api/stripe/webhook` sur les événements `checkout.session.completed` et `checkout.session.expired`, et son secret dans `STRIPE_WEBHOOK_SECRET`. Sans ces deux clés, l’inscription en ligne reste fermée en production.
+- **Vercel Blob** (logos, affiches, captures, images du fil) : Vercel › Storage › Create › Blob, relié au projet ; `BLOB_READ_WRITE_TOKEN` est ajouté automatiquement.
+- **Resend** (e-mails de confirmation) : `RESEND_API_KEY` et `EMAIL_FROM` avec un domaine vérifié.
+- Temps réel : le Match Center s’actualise toutes les 6 s ; Ably (`ABLY_API_KEY`) reste à brancher pour l’instantané.
+
 **Lots suivants**
 Lots B à H : voir `PLAN.md` §7 (cœur compétitif, Match Center, structures et profils, événements et LAN, administration, communauté, qualité).
 
