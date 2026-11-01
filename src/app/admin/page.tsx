@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { CHALLENGE_GAMES, GAMES, getGame } from "@/lib/data/games";
-import { DEMO_CAMPAIGNS } from "@/lib/data/demo-competition";
 import { namesFor } from "@/lib/matches/queries";
 import { K_DEFAULT, K_PLACEMENT, PLACEMENT_MATCHES, START_SCORE } from "@/lib/rules/elo";
 import { MAX_PENDING_OUT, PAIR_MAX_COUNTED, PAIR_WINDOW_DAYS, REMATCH_DAYS, RESPONSE_HOURS, UNJUSTIFIED_REFUSAL_PENALTY } from "@/lib/rules/challenge";
@@ -17,10 +16,16 @@ import { integrationStatus } from "@/lib/integrations";
 import { LanEditor, LanResultsEditor, ValidateLanResults, type LanForm } from "@/components/admin/LanAdmin";
 import { euros, getLan, LAN_STATUS, lanDates, listLans, programToText } from "@/lib/lan/queries";
 import { Badge } from "@/components/ui";
+import { CampaignEditor, CompetitionTextEditor, HomeEditor, MaintenanceToggle, PartnerEditor } from "@/components/admin/SiteAdmin";
+import { SLOT_LABEL } from "@/lib/site/ads";
+import { getCompetitionTexts, getHome, getMaintenance, HOME_BLOCKS } from "@/lib/site/settings";
 import { getPlayoffs } from "@/lib/playoffs";
 import { getSeason } from "@/lib/season";
 import { MatchDate, PlayoffsGameActions } from "@/components/admin/PlayoffsAdmin";
 import { RoundEntry } from "@/components/admin/RdvAdmin";
+import { CycleEditor, DeleteCycle } from "@/components/admin/MapPoolAdmin";
+import { activePool } from "@/lib/matches/room";
+import { CDL_MODES, type CdlMode, type VetoPool } from "@/lib/rules/veto";
 import { eventResults } from "@/lib/events/results";
 import { tftLobbies } from "@/lib/rules/scales";
 import { AdModeration, BroadcastForm, GameFormatForm, LiftSanction, SanctionForm, StructureReview, UserControls } from "@/components/admin/AdminClient";
@@ -29,9 +34,10 @@ export const metadata: Metadata = { title: "Administration" };
 
 const NAV: { group: string; items: [string, string][] }[] = [
   { group: "Pilotage", items: [["dashboard", "Tableau de bord"]] },
-  { group: "Compétition", items: [["rdv", "RDV mensuels"], ["playoffs", "Playoffs"], ["lan", "LAN"], ["results", "Résultats"], ["sanctions", "Sanctions"], ["formats", "Formats & barèmes"], ["rankcfg", "Paramètres Rankings"]] },
-  { group: "Communauté", items: [["structs", "Structures"], ["users", "Utilisateurs"], ["ads", "Annonces"], ["posts", "Publications"], ["notifs", "Notifications"]] },
-  { group: "Commercial", items: [["leads", "Demandes partenaires"], ["campaigns", "Publicités"]] },
+  { group: "Compétition", items: [["comps", "Compétitions"], ["results", "Résultats"], ["rdv", "RDV mensuels"], ["playoffs", "Playoffs"], ["lan", "LAN"], ["mappool", "Map pool & cycles"], ["sanctions", "Sanctions"], ["formats", "Formats & barèmes"], ["rankcfg", "Paramètres Rankings"]] },
+  { group: "Contenu du site", items: [["home", "Page d’accueil"], ["posts", "Publications"], ["notifs", "Notifications"]] },
+  { group: "Communauté", items: [["structs", "Structures"], ["users", "Utilisateurs"], ["ads", "Annonces"]] },
+  { group: "Commercial", items: [["partners", "Partenaires"], ["campaigns", "Publicités"], ["leads", "Demandes partenaires"]] },
   { group: "Système", items: [["audit", "Journal d’audit"]] },
 ];
 const REFEREE_OK = ["dashboard", "rdv", "lan", "results", "sanctions"];
@@ -105,17 +111,17 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           {sec === "lan" && <LanSection id={sp.id} isAdmin={isAdmin} />}
           {sec === "playoffs" && <PlayoffsSection />}
           {sec === "rdv" && <RdvSection id={sp.id} isAdmin={isAdmin} />}
+          {sec === "mappool" && <MapPoolSection />}
           {sec === "leads" && <Leads />}
-          {sec === "campaigns" && <Campaigns />}
+          {sec === "campaigns" && <Campaigns id={sp.id} />}
+          {sec === "partners" && <PartnersSection id={sp.id} />}
+          {sec === "home" && <HomeSection />}
+          {sec === "comps" && <CompetitionsSection />}
           {sec === "audit" && <Audit />}
         </div>
       </div>
     </main>
   );
-}
-
-function DemoTag() {
-  return <span className="badge text-silver">Données de démonstration</span>;
 }
 
 async function Dashboard({ isAdmin }: { isAdmin: boolean }) {
@@ -487,28 +493,107 @@ async function Leads() {
   );
 }
 
-function Campaigns() {
+async function Campaigns({ id }: { id?: string }) {
   const nf = new Intl.NumberFormat("fr-FR");
+  const [list, partners] = await Promise.all([
+    db.adCampaign.findMany({ orderBy: { createdAt: "desc" }, include: { partner: { select: { name: true } } } }),
+    db.partner.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
+  const now = new Date();
+  const d = (x: Date | null) => (x ? new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion" }).format(x) : "");
+  const cur = list.find((c) => c.id === id);
+  const status = (c: (typeof list)[number]) => (!c.active ? "Désactivée" : c.startsAt > now ? "Programmée" : c.endsAt && c.endsAt < now ? "Terminée" : c.cap != null && c.impressions >= c.cap ? "Plafond atteint" : "Active");
   return (
-    <section className="card overflow-x-auto">
-      <div className="card-head"><span className="card-title">Campagnes · performances</span><DemoTag /></div>
-      <div className="min-w-[760px]">
-        <div className="grid grid-cols-[minmax(0,1fr)_170px_90px_70px_70px_120px] gap-3 border-b border-line px-[18px] py-2.5 overline !font-normal">
-          <span>Campagne</span><span>Emplacement</span><span className="text-right">Impr.</span><span className="text-right">Clics</span><span className="text-right">CTR</span><span>Statut</span>
-        </div>
-        {DEMO_CAMPAIGNS.map((c) => (
-          <div key={c.name} className="grid grid-cols-[minmax(0,1fr)_170px_90px_70px_70px_120px] items-center gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm">
-            <span><span className="block font-semibold">{c.name}</span><span className="block text-xs text-grey">{c.partner} · {c.dates} · plafond {c.cap}</span></span>
-            <span className="text-xs">{c.slot}</span>
-            <span className="text-right">{nf.format(c.imp)}</span>
-            <span className="text-right">{nf.format(c.clicks)}</span>
-            <span className="text-right">{((c.clicks / c.imp) * 100).toFixed(1).replace(".", ",")} %</span>
-            <span className={`text-xs font-bold ${c.status === "Active" ? "text-orange" : "text-grey"}`}>● {c.status}</span>
+    <div className="grid gap-4">
+      {(id === "new" || cur) && (
+        <section className="card">
+          <div className="card-head"><span className="card-title">{cur ? `Modifier · ${cur.name}` : "Nouvelle campagne"}</span><Link href="/admin?s=campaigns" className="text-[13px]">Fermer</Link></div>
+          <CampaignEditor
+            key={cur?.id ?? "new"}
+            partners={partners}
+            slots={Object.entries(SLOT_LABEL)}
+            initial={cur ? { id: cur.id, partnerId: cur.partnerId, name: cur.name, slot: cur.slot, imageUrl: cur.imageUrl ?? "", title: cur.title, body: cur.body ?? "", link: cur.link, startsOn: d(cur.startsAt), endsOn: d(cur.endsAt), cap: cur.cap == null ? "" : String(cur.cap), active: cur.active } : { partnerId: "", name: "", slot: "FEED_CARD", imageUrl: "", title: "", body: "", link: "", startsOn: d(now), endsOn: "", cap: "", active: true }}
+          />
+        </section>
+      )}
+      <section className="card overflow-x-auto">
+        <div className="card-head"><span className="card-title">Campagnes · performances</span><Link href="/admin?s=campaigns&id=new" className="btn btn-primary btn-sm">Nouvelle campagne</Link></div>
+        {list.length === 0 ? (
+          <Empty>Aucune campagne.</Empty>
+        ) : (
+          <div className="min-w-[760px]">
+            <div className="grid grid-cols-[minmax(0,1fr)_170px_90px_70px_70px_120px] gap-3 border-b border-line px-[18px] py-2.5 overline !font-normal">
+              <span>Campagne</span><span>Emplacement</span><span className="text-right">Impr.</span><span className="text-right">Clics</span><span className="text-right">CTR</span><span>Statut</span>
+            </div>
+            {list.map((c) => {
+              const st = status(c);
+              return (
+                <Link key={c.id} href={`/admin?s=campaigns&id=${c.id}`} className="grid grid-cols-[minmax(0,1fr)_170px_90px_70px_70px_120px] items-center gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm text-ink hover:bg-surface-2 hover:text-ink">
+                  <span><span className="block font-semibold">{c.name}</span><span className="block text-xs text-grey">{c.partner.name} · dès le {fmt(c.startsAt)}{c.cap ? ` · plafond ${nf.format(c.cap)}` : ""}</span></span>
+                  <span className="text-xs">{SLOT_LABEL[c.slot]}</span>
+                  <span className="text-right">{nf.format(c.impressions)}</span>
+                  <span className="text-right">{nf.format(c.clicks)}</span>
+                  <span className="text-right">{c.impressions ? `${((c.clicks / c.impressions) * 100).toFixed(1).replace(".", ",")} %` : "—"}</span>
+                  <span className={`text-xs font-bold ${st === "Active" ? "text-orange" : "text-grey"}`}>● {st}</span>
+                </Link>
+              );
+            })}
           </div>
+        )}
+        <div className="px-[18px] py-3 text-xs text-grey">Impressions comptées à chaque affichage, clics comptés via un lien de redirection. Rotation : la campagne la moins vue de l’emplacement passe en premier.</div>
+      </section>
+    </div>
+  );
+}
+
+async function PartnersSection({ id }: { id?: string }) {
+  const list = await db.partner.findMany({ orderBy: [{ order: "asc" }, { name: "asc" }], include: { _count: { select: { campaigns: true } } } });
+  const cur = list.find((p) => p.id === id);
+  const LEVEL = { MAIN: "Principal", OFFICIAL: "Officiel", ASSOCIATIVE: "Associatif" } as const;
+  return (
+    <div className="grid gap-4">
+      {(id === "new" || cur) && (
+        <section className="card">
+          <div className="card-head"><span className="card-title">{cur ? `Modifier · ${cur.name}` : "Ajouter un partenaire"}</span><Link href="/admin?s=partners" className="text-[13px]">Fermer</Link></div>
+          <PartnerEditor
+            key={cur?.id ?? "new"}
+            initial={cur ? { id: cur.id, name: cur.name, category: cur.category, level: cur.level, site: cur.site ?? "", description: cur.description, logoUrl: cur.logoUrl, band: cur.band, active: cur.active, order: String(cur.order) } : { name: "", category: "", level: "OFFICIAL", site: "", description: "", logoUrl: "", band: true, active: true, order: String(list.length) }}
+          />
+        </section>
+      )}
+      <section className="card">
+        <div className="card-head"><span className="card-title">Partenaires</span><Link href="/admin?s=partners&id=new" className="btn btn-primary btn-sm">Ajouter un partenaire</Link></div>
+        {list.map((p) => (
+          <Link key={p.id} href={`/admin?s=partners&id=${p.id}`} className="flex items-center gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm text-ink hover:bg-surface-2 hover:text-ink">
+            <Image src={p.logoUrl} alt="" width={48} height={32} className="h-8 w-12 object-contain" />
+            <span className="min-w-0 flex-1"><span className="block font-semibold">{p.name}</span><span className="block text-xs text-grey">{LEVEL[p.level]} · {p.category} · {p._count.campaigns} campagne(s)</span></span>
+            <span className="text-xs text-grey">{p.active ? (p.band ? "Visible · accueil" : "Visible") : "Masqué"}</span>
+          </Link>
         ))}
-      </div>
-      <div className="px-[18px] py-3 text-xs text-grey">Impressions et clics : nécessite une intégration de mesure publicitaire.</div>
-    </section>
+        {list.length === 0 && <Empty>Aucun partenaire.</Empty>}
+      </section>
+    </div>
+  );
+}
+
+async function HomeSection() {
+  const [home, maint, lans] = await Promise.all([getHome(), getMaintenance(), db.lanEvent.findMany({ where: { status: { not: "DRAFT" } }, select: { slug: true, name: true }, orderBy: { startsAt: "desc" } })]);
+  return (
+    <div className="grid gap-4">
+      <section className="card">
+        <div className="card-head"><span className="card-title">Page d’accueil</span><Link href="/" className="text-[13px]">Voir l’accueil →</Link></div>
+        <div className="px-[18px] py-4">
+          <HomeEditor initial={{ ...home, bannerLan: home.bannerLan ?? "" }} allBlocks={HOME_BLOCKS} lans={lans} />
+        </div>
+      </section>
+      <section className={`card ${maint.on ? "!border-red" : ""}`}>
+        <div className="card-head"><span className="card-title">Mode maintenance</span><span className={`card-meta ${maint.on ? "!text-red" : ""}`}>{maint.on ? "ACTIVÉ" : "Désactivé"}</span></div>
+        <div className="px-[18px] py-4">
+          <p className="mb-3 text-sm text-silver">Remplace le site public par la page de maintenance. Les administrateurs continuent de voir le site et la page de connexion reste accessible.</p>
+          <MaintenanceToggle on={maint.on} message={maint.message} />
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -709,5 +794,59 @@ async function RdvSection({ id, isAdmin }: { id?: string; isAdmin: boolean }) {
         </section>
       )}
     </div>
+  );
+}
+
+// ─── Map pool & cycles ───────────────────────────────────────────
+
+function poolText(game: string, p: VetoPool) {
+  return game === "val" ? (p as string[]).join(", ") : (Object.keys(CDL_MODES) as CdlMode[]).map((m) => `${m} : ${(p as Record<CdlMode, string[]>)[m]?.join(", ")}`).join(" · ");
+}
+
+async function MapPoolSection() {
+  const now = new Date();
+  const tomorrow = new Intl.DateTimeFormat("en-CA", { timeZone: "Indian/Reunion" }).format(new Date(now.getTime() + 86_400_000));
+  const day = (d: Date) => new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeZone: "Indian/Reunion" }).format(d);
+  const blocks = await Promise.all(
+    (["val", "cod"] as const).map(async (game) => ({
+      game,
+      current: await activePool(game, now),
+      cycles: await db.mapCycle.findMany({ where: { game }, orderBy: { startsAt: "desc" }, take: 12 }),
+    })),
+  );
+  return (
+    <div className="grid gap-4">
+      {blocks.map(({ game, current, cycles }) => {
+        const active = cycles.find((c) => c.startsAt <= now);
+        return (
+          <section key={game} className="card">
+            <div className="card-head"><span className="card-title">{getGame(game)?.name}</span><span className="card-meta">{active ? `Cycle actif : ${active.name}` : "Pool par défaut"}</span></div>
+            <div className="border-b border-line px-[18px] py-3 text-sm"><span className="overline mr-2">Pool actif</span>{poolText(game, current)}</div>
+            <CycleEditor game={game} current={current} tomorrow={tomorrow} />
+            <div className="border-t border-line">
+              <div className="overline px-[18px] pt-3 pb-1">Historique des cycles</div>
+              {cycles.length === 0 && <p className="px-[18px] pb-3 text-sm text-grey">Aucun cycle : le pool par défaut s’applique.</p>}
+              {cycles.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-surface-2 px-[18px] py-2 text-sm">
+                  <span><strong>{c.name}</strong> <span className="text-xs text-grey">· {c.startsAt > now ? `programmé le ${day(c.startsAt)}` : `depuis le ${day(c.startsAt)}`}{c.id === active?.id ? " · actif" : ""}</span><span className="block text-xs text-silver">{poolText(game, c.maps as VetoPool)}</span></span>
+                  {c.startsAt > now && <DeleteCycle id={c.id} />}
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+async function CompetitionsSection() {
+  const texts = await getCompetitionTexts();
+  return (
+    <section className="card">
+      <div className="card-head"><span className="card-title">Pages compétition</span><span className="card-meta">Nom, bannière et présentation par jeu</span></div>
+      {GAMES.map((g) => <CompetitionTextEditor key={g.id} game={g.id} name={g.name} initial={texts[g.id]} />)}
+      <div className="px-[18px] py-3 text-xs text-grey">Formats, séries et barèmes : section « Formats & barèmes ». Map pool : « Map pool & cycles ». LAN : section « LAN ».</div>
+    </section>
   );
 }

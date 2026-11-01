@@ -5,7 +5,7 @@ export function PageHeader({ overline, title, children, actions }: { overline?: 
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        {overline && <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-grey">{overline}</div>}
+        {overline && <div className="text-[13px] font-semibold uppercase tracking-[.14em] text-grey [overflow-wrap:anywhere]">{overline}</div>}
         <h1 className="font-display mt-1 text-[clamp(40px,6vw,56px)] font-extrabold leading-none">{title}</h1>
         {children && <div className="mt-2 max-w-[720px] text-[15px] leading-relaxed text-silver">{children}</div>}
       </div>

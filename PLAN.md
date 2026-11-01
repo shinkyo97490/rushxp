@@ -116,12 +116,12 @@ Une page interne `/admin/ui` (réservée aux admins) montrera tous les états po
 | Compétition par jeu | **Fait** : phase en cours, vrais matchs, participants vérifiés | Tirage animé |
 | **LAN & événements** | **Fait** (`/lan`, console › LAN) : fiche avec compte à rebours, onglets Infos / Tournois & tarifs / Inscrits / Résultats / Inscription, inscription équipe ou solo en 4 étapes, paiement Stripe simulé (désactivé en production tant que Stripe n’est pas branché), annulation et remboursement, saisie du classement par les arbitres, validation, points par structure (meilleur classement par jeu) | Adaptateur Stripe réel + webhook signé, billet QR, autorisation parentale (mineurs), envoi d’affiche, points LAN dans le grand livre du classement général (lot B) |
 | Actualités | Réel (posts, j’aime, commentaires, sondages) | Réactions multiples, médias (stockage), sponsorisé piloté par `AdCampaign`, notification aux abonnés |
-| Partenaires, publicités | Contenu en dur, campagnes démo | `Partner`, `AdCampaign`, mesure des impressions et clics |
-| **Administration, éditeur générique** | Sections réelles (structures, utilisateurs, annonces, sanctions, formats, audit…) | Navigation par domaine, bloc « Créer », **éditeur générique** (liste, sections numérotées, aperçu en direct, vérifications, brouillon, programmer, publier), **map pool et cycles**, saisie des RDV, règlements versionnés, publicités |
+| Partenaires, publicités | **Fait (en base)** : partenaires (niveau, bande d’accueil), campagnes par emplacement avec dates, plafond, rotation, impressions et clics mesurés | — |
+| **Administration** | **Fait** : navigation par domaine (Compétition, Contenu du site, Communauté, Commercial, Système) ; éditeurs Compétitions, LAN, Page d’accueil (aperçu en direct, blocs, bannière), Partenaires, Publicités ; map pool et cycles programmés ; saisie des RDV ; Playoffs ; mode maintenance | Règlements versionnés en base, sondages programmés |
 | Messagerie, notifications | Réel (rafraîchissement 10 s) | Temps réel, e-mails |
 | Paramètres | Réel | 2FA, OAuth des comptes de jeu |
 | Inscription, création de structure | Réel | Liaison OAuth des comptes de jeu |
-| États système | Fait | Mode maintenance piloté par `SiteSetting` |
+| États système | **Fait**, mode maintenance piloté depuis l’administration | — |
 | Mobile 375 px | Vérifié sur toutes les routes | À revérifier à chaque lot |
 
 ## 7. Ordre de travail (adapté à l’existant)

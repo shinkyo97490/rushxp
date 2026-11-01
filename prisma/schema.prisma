@@ -989,3 +989,67 @@ model LanResult {
 
   @@id([tournamentId, place])
 }
+
+// ─── Partenaires, publicités, réglages du site ───────────────────
+
+enum PartnerLevel {
+  MAIN
+  OFFICIAL
+  ASSOCIATIVE
+}
+
+model Partner {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  category    String
+  level       PartnerLevel @default(OFFICIAL)
+  site        String?
+  description String       @default("")
+  logoUrl     String
+  /// affiché dans la bande partenaires de l'accueil
+  band        Boolean      @default(true)
+  active      Boolean      @default(true)
+  order       Int          @default(0)
+  createdAt   DateTime     @default(now())
+
+  campaigns AdCampaign[]
+}
+
+enum AdSlot {
+  HOME_BANNER
+  FEED_CARD
+  COMPETITION_BAND
+  SIDE_BLOCK
+  EVENT_VISUAL
+}
+
+model AdCampaign {
+  id          String    @id @default(cuid())
+  partnerId   String
+  name        String
+  slot        AdSlot
+  imageUrl    String?
+  title       String
+  body        String?
+  link        String
+  startsAt    DateTime
+  endsAt      DateTime?
+  /// plafond d'impressions (null = illimité)
+  cap         Int?
+  impressions Int       @default(0)
+  clicks      Int       @default(0)
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([slot, active])
+}
+
+/// Réglages éditables (contenu de l'accueil, mode maintenance…).
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

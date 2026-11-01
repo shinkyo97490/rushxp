@@ -8,9 +8,11 @@ interface Props {
   pseudo: string;
   roleLabel: string;
   structure: { name: string; status: string } | null;
+  /** Liens de console (repris ici sur mobile, où les boutons de l'en-tête sont masqués). */
+  staff?: "admin" | "arbitre" | null;
 }
 
-export function AccountMenu({ pseudo, roleLabel, structure }: Props) {
+export function AccountMenu({ pseudo, roleLabel, structure, staff }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -53,6 +55,8 @@ export function AccountMenu({ pseudo, roleLabel, structure }: Props) {
             <Link role="menuitem" href="/structure/nouvelle" className={item} onClick={() => setOpen(false)}>Créer une structure</Link>
           )}
           <Link role="menuitem" href="/parametres" className={item} onClick={() => setOpen(false)}>Paramètres</Link>
+          {staff === "admin" && <Link role="menuitem" href="/admin" className={`${item} sm:hidden`} onClick={() => setOpen(false)}>Administration</Link>}
+          {staff && <Link role="menuitem" href="/arbitrage" className={`${item} sm:hidden`} onClick={() => setOpen(false)}>Espace arbitre</Link>}
           <form action={signOutAction} className="border-t border-line">
             <button role="menuitem" className={`${item} w-full cursor-pointer text-left`}>Se déconnecter</button>
           </form>

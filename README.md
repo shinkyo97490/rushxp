@@ -106,6 +106,12 @@ Chaque écran du prototype a sa route.
 - Console › LAN : création et modification (informations, programme, tournois, tarifs, statut, remboursement), saisie du classement par les arbitres, validation des résultats.
 - Les événements annoncés dans le prototype sont créés **en brouillon** au déploiement : vérifiez-les puis passez-les en « Annoncé » ou « Inscriptions ouvertes ».
 
+**Lots B, C, E, F (faits)**
+- Rankings, défis et classement général en base (entrée en placement, appariements, défis à 3 créneaux, relances, expirations, Elo, inactivité).
+- Match Center : check-in, veto avec map pool figé, diffusion, salon, résultat (déclaration, confirmation, contestation), décision d’arbitre, vote MVP.
+- Playoffs : seeding figé (SHA-256), quarts générés, qualification automatique. RDV mensuels : saisie arbitre manche par manche.
+- Administration : compétitions, page d’accueil, partenaires, publicités (impressions et clics), map pool et cycles, maintenance.
+
 **Lots suivants**
 Lots B à H : voir `PLAN.md` §7 (cœur compétitif, Match Center, structures et profils, événements et LAN, administration, communauté, qualité).
 

@@ -7,26 +7,18 @@ import { RULES_GAME } from "@/lib/data/content";
 import { getSeasonContext } from "@/lib/season";
 import { getViewer } from "@/lib/auth/viewer";
 import { calendarItems } from "@/lib/matches/queries";
+import { serveAd } from "@/lib/site/ads";
+import { getCompetitionTexts } from "@/lib/site/settings";
 import { SeasonTimeline } from "@/components/SeasonTimeline";
 import { Empty, TabLinks } from "@/components/PageHeader";
 
 export const metadata: Metadata = { title: "Compétitions" };
 
-const DESC: Record<string, { comp: string; photo: string; desc: string }> = {
-  val: { comp: "RushXP Valorant Series", photo: "/assets/photo-dsc07373.jpg", desc: "Ligue 5v5 en divisions de 8. Défis toute l’année, veto BO3 directement dans le Match Center, Playoffs pour le top 8 de la Division 1." },
-  rl: { comp: "RushXP Rocket Cup", photo: "/assets/photo-dsc06369.jpg", desc: "Classement 3v3 permanent. Séries BO5, BO7 en finale. Le lobby est créé par l’équipe la mieux classée." },
-  cod: { comp: "RushXP CDL Challengers", photo: "/assets/photo-dsc05885.jpg", desc: "Circuit 4v4 au format CDL : séries BO5 alternant Hardpoint, Recherche & Destruction et Contrôle, veto mode par mode." },
-  fc: { comp: "RushXP FUT Ladder", photo: "/assets/photo-dsc06256.jpg", desc: "Ladder individuel FUT en aller simple. Le meilleur joueur de chaque structure compte au classement général." },
-  tek: { comp: "RushXP Tekken Clash", photo: "/assets/photo-dsc06256.jpg", desc: "Ligue 1v1 en sets FT3, finale des Playoffs en FT5. Le perdant d’une manche peut changer de personnage." },
-  tft: { comp: "RDV mensuel TFT", photo: "/assets/photo-dsc05753.jpg", desc: "Un rendez-vous par mois en 6 manches, lobbys de 8 recomposés selon le classement cumulé." },
-  wz: { comp: "RDV mensuel Warzone", photo: "/assets/photo-dsc05885.jpg", desc: "Un rendez-vous par mois en duo, 6 manches, placement + 1 point par élimination." },
-  apex: { comp: "RDV mensuel Apex Legends", photo: "/assets/photo-dsc06369.jpg", desc: "Un rendez-vous par mois en trio, 6 manches, placement + 1 point par élimination." },
-};
 
 export default async function CompetitionsPage({ searchParams }: { searchParams: Promise<{ jeu?: string; tab?: string }> }) {
   const sp = await searchParams;
   const g = getGame(sp.jeu ?? "") ?? GAMES[0];
-  const d = DESC[g.id];
+  const d = (await getCompetitionTexts())[g.id];
   const tab = sp.tab === "participants" || sp.tab === "reglement" ? sp.tab : "apercu";
   const lobby = g.kind === "lobby";
   const rosters = await db.roster.findMany({
@@ -39,6 +31,7 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
   const viewer = await getViewer();
   const matches = (await calendarItems({ viewer, from: new Date(now.getTime() - 14 * 86_400_000), to: new Date(now.getTime() + 60 * 86_400_000), game: g.id })).slice(0, 12);
   const base = `/competitions?jeu=${g.id}`;
+  const band = tab === "apercu" ? await serveAd("COMPETITION_BAND") : null;
 
   return (
     <main className="pb-16">
@@ -127,11 +120,13 @@ export default async function CompetitionsPage({ searchParams }: { searchParams:
                   <div key={k} className="flex justify-between gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm"><span className="text-grey">{k}</span><span className="text-right font-semibold">{v}</span></div>
                 ))}
               </section>
-              <section className="card flex items-center gap-3 px-[18px] py-3">
-                <span className="overline">Partenaire</span>
-                <Image src="/assets/partner-orange.png" alt="Orange" width={40} height={40} className="h-8 w-auto" />
-                <span className="text-xs text-silver"><b className="text-ink">Orange</b> présente les compétitions RushXP</span>
-              </section>
+              {band && (
+                <a href={band.href} className="card flex items-center gap-3 px-[18px] py-3 text-ink hover:border-orange hover:text-ink">
+                  <span className="overline">Partenaire</span>
+                  <Image src={band.imageUrl ?? band.partner.logoUrl} alt={band.partner.name} width={40} height={40} className="h-8 w-auto" />
+                  <span className="text-xs text-silver">{band.title}</span>
+                </a>
+              )}
             </div>
           </div>
         )}

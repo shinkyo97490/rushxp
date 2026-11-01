@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { getViewer } from "@/lib/auth/viewer";
 import { getGame } from "@/lib/data/games";
 import { upcomingItems } from "@/lib/matches/queries";
+import { serveAd } from "@/lib/site/ads";
 import { Empty } from "@/components/PageHeader";
 import { Poll, PostActions, type CommentView } from "@/components/feed/FeedClient";
 
@@ -51,6 +52,7 @@ export default async function ActualitesPage({ searchParams }: { searchParams: P
   const canPublish = viewer?.role === "admin" || viewer?.structure?.status === "VERIFIED";
   const canModerate = viewer?.role === "admin" || viewer?.role === "arbitre";
   const upcoming = await upcomingItems(viewer);
+  const [ad, side] = await Promise.all([serveAd("FEED_CARD"), serveAd("SIDE_BLOCK")]);
 
   const toComments = (p: (typeof posts)[number]): CommentView[] => {
     const view = (c: (typeof p.comments)[number]): CommentView => ({
@@ -145,19 +147,21 @@ export default async function ActualitesPage({ searchParams }: { searchParams: P
                   isAdmin={viewer?.role === "admin"}
                 />
               </article>
-              {i === 1 && (
+              {i === 1 && ad && (
                 <article className="card">
                   <div className="flex items-center gap-3 px-[18px] py-3">
-                    <Image src="/assets/partner-mcdo.png" alt="McDonald’s" width={36} height={36} className="h-9 w-9 object-contain" />
-                    <div className="flex-1"><div className="font-semibold">McDonald’s</div><div className="text-xs text-grey">Partenaire restauration</div></div>
+                    <Image src={ad.partner.logoUrl} alt={ad.partner.name} width={36} height={36} className="h-9 w-9 object-contain" />
+                    <div className="flex-1"><div className="font-semibold">{ad.partner.name}</div><div className="text-xs text-grey">{ad.partner.category}</div></div>
                     <span className="badge text-silver">Sponsorisé</span>
                   </div>
-                  <div className="relative aspect-[16/7] border-y border-line bg-black">
-                    <Image src="/assets/campaign-mcdelivery.png" alt="Campagne McDelivery" fill className="object-contain" sizes="640px" />
-                  </div>
+                  {ad.imageUrl && (
+                    <div className="relative aspect-[16/7] border-y border-line bg-black">
+                      <Image src={ad.imageUrl} alt={ad.title} fill className="object-contain" sizes="640px" />
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-3 px-[18px] py-3 text-sm">
-                    <span>Soirée de match ? Commandez avec McDelivery.</span>
-                    <Link href="/partenaires" className="btn btn-tertiary btn-sm">Découvrir</Link>
+                    <span>{ad.title}</span>
+                    <a href={ad.href} className="btn btn-tertiary btn-sm">Découvrir</a>
                   </div>
                 </article>
               )}
@@ -190,11 +194,13 @@ export default async function ActualitesPage({ searchParams }: { searchParams: P
             );
           })}
         </section>
-        <section className="card p-[18px]">
-          <div className="overline">Partenaire</div>
-          <Image src="/assets/partner-ocorner.png" alt="OCorner" width={140} height={60} className="mt-2 h-14 w-auto object-contain" />
-          <div className="mt-2 text-[13px] text-silver">LAN et finales en présentiel à OCorner · places limitées.</div>
-        </section>
+        {side && (
+          <a href={side.href} className="card block p-[18px] text-ink hover:border-orange hover:text-ink">
+            <div className="flex justify-between"><span className="overline">Partenaire</span><span className="badge text-silver">Publicité</span></div>
+            <Image src={side.imageUrl ?? side.partner.logoUrl} alt={side.partner.name} width={140} height={60} className="mt-2 h-14 w-auto object-contain" />
+            <div className="mt-2 text-[13px] text-silver">{side.title}</div>
+          </a>
+        )}
       </aside>
     </main>
   );

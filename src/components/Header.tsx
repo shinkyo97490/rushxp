@@ -66,13 +66,13 @@ export function Header({ viewer, received = 0 }: { viewer: Viewer | null; receiv
         {isStaff(role) && (
           <>
             {role === "admin" && (
-              <Link href="/admin" className="btn btn-secondary !min-h-[38px] !px-3 !text-sm">Admin</Link>
+              <Link href="/admin" className="btn btn-secondary !hidden !min-h-[38px] !px-3 !text-sm sm:!inline-flex">Admin</Link>
             )}
-            <Link href="/arbitrage" className="btn btn-tertiary !min-h-[38px] !px-3 !text-sm">Arbitrage</Link>
+            <Link href="/arbitrage" className="btn btn-tertiary !hidden !min-h-[38px] !px-3 !text-sm sm:!inline-flex">Arbitrage</Link>
           </>
         )}
         {viewer ? (
-          <AccountMenu pseudo={viewer.pseudo} roleLabel={ROLE_LABEL[role]} structure={viewer.structure} />
+          <AccountMenu pseudo={viewer.pseudo} roleLabel={ROLE_LABEL[role]} structure={viewer.structure} staff={role === "admin" || role === "arbitre" ? role : null} />
         ) : (
           <Link href="/connexion" className="btn btn-primary clip-corner-sm !min-h-[38px] !px-4">Connexion</Link>
         )}

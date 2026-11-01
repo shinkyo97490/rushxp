@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Bibliothèque de composants" };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="grid gap-3">
+    <section className="grid min-w-0 gap-3">
       <h2 className="font-display text-2xl font-bold">{title}</h2>
       {children}
     </section>
@@ -21,7 +21,7 @@ export default async function UiShowcase() {
   const v = await getViewer();
   if (v?.role !== "admin") notFound();
   return (
-    <main className="container-rx grid gap-10 pt-7 pb-16">
+    <main className="container-rx grid grid-cols-[minmax(0,1fr)] gap-10 pt-7 pb-16">
       <PageHeader overline="Administration · revue visuelle" title="Composants">
         Chaque composant dans tous ses états : normal, survol, actif, focus clavier (Tab), désactivé avec raison, chargement, succès, erreur, avertissement.
       </PageHeader>

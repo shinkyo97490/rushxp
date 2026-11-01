@@ -112,6 +112,25 @@ const LAN_DRAFTS = [
   },
 ];
 
+/** Partenaires fournis par le client (logos dans public/assets) et leurs deux campagnes, créés une seule fois. */
+async function seedPartners() {
+  if (await db.partner.count()) return;
+  const list = [
+    { slug: "mcdo", name: "McDonald’s", category: "Restauration", level: "OFFICIAL", logoUrl: "/assets/partner-mcdo.png", description: "Partenaire restauration de la saison. Campagne McDelivery diffusée dans le fil et lors des soirées de finale." },
+    { slug: "orange", name: "Orange", category: "Télécom & connectivité", level: "MAIN", logoUrl: "/assets/partner-orange.png", description: "Partenaire connectivité. Présente les Playoffs et la connexion des LAN RushXP." },
+    { slug: "ocorner", name: "OCorner", category: "Lieu gaming & événementiel", level: "OFFICIAL", logoUrl: "/assets/partner-ocorner.png", description: "Lieu d’accueil des LAN et des finales en présentiel." },
+    { slug: "easygym", name: "easyGym", category: "Sport & bien-être", level: "OFFICIAL", logoUrl: "/assets/partner-easygym.png", description: "Partenaire préparation physique des joueurs et des structures." },
+    { slug: "saintpaul", name: "Ville de Saint-Paul", category: "Institution", level: "ASSOCIATIVE", logoUrl: "/assets/partner-saintpaul.png", description: "Collectivité partenaire de la saison RushXP · Île de La Réunion." },
+  ] as const;
+  for (const [order, p] of list.entries()) await db.partner.create({ data: { ...p, order } });
+  const mcdo = await db.partner.findUniqueOrThrow({ where: { slug: "mcdo" } });
+  const orange = await db.partner.findUniqueOrThrow({ where: { slug: "orange" } });
+  const start = new Date();
+  await db.adCampaign.create({ data: { partnerId: mcdo.id, name: "McDelivery · soirées de match", slot: "FEED_CARD", imageUrl: "/assets/campaign-mcdelivery.png", title: "Soirée de match ? Commandez avec McDelivery.", link: "/partenaires?p=mcdo", startsAt: start } });
+  await db.adCampaign.create({ data: { partnerId: orange.id, name: "Orange présente les compétitions", slot: "COMPETITION_BAND", title: "Orange présente les compétitions RushXP", link: "/partenaires?p=orange", startsAt: start } });
+  console.log("Partenaires et campagnes créés.");
+}
+
 async function seedLans() {
   for (const { tournaments, ...lan } of LAN_DRAFTS) {
     if (await db.lanEvent.findUnique({ where: { slug: lan.slug } })) continue;
@@ -122,6 +141,7 @@ async function seedLans() {
 
 main()
   .then(seedLans)
+  .then(seedPartners)
   .catch((e) => {
     console.error(e);
     process.exit(1);

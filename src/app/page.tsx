@@ -8,8 +8,10 @@ import { isStaff } from "@/lib/session-shared";
 import { getSeasonContext } from "@/lib/season";
 import { db } from "@/lib/db";
 import { SeasonTimeline } from "@/components/SeasonTimeline";
+import { getHome } from "@/lib/site/settings";
+import { activePartners, serveAd } from "@/lib/site/ads";
+import { upcomingItems } from "@/lib/matches/queries";
 
-const PARTNERS = ["partner-orange.png", "partner-mcdo.png", "partner-easygym.png", "partner-ocorner.png", "partner-saintpaul.png"];
 
 export default async function Home() {
   const viewer = await getViewer();
@@ -20,11 +22,20 @@ export default async function Home() {
   const dayFmt = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "Indian/Reunion" });
   const top5 = (await getGeneralStandings()).list.slice(0, 5);
   const member = role !== "visiteur";
+  const home = await getHome();
+  const show = (b: string) => home.blocks.includes(b);
+  const [partners, banner, upcoming, lan] = await Promise.all([
+    show("Partenaires") ? activePartners(true) : Promise.resolve([]),
+    serveAd("HOME_BANNER"),
+    show("Prochains matchs") ? upcomingItems(viewer, 21, 5) : Promise.resolve([]),
+    db.lanEvent.findFirst({ where: home.bannerLan ? { slug: home.bannerLan, status: { not: "DRAFT" } } : { status: { in: ["OPEN", "ANNOUNCED"] } }, orderBy: { startsAt: "asc" } }),
+  ]);
+  const todo = isStaff(role) ? (await db.dispute.count({ where: { decidedAt: null } })) + (await db.matchEvent.count({ where: { reported: true, hidden: false } })) + (await db.message.count({ where: { reported: true } })) : 0;
 
   return (
     <main>
       <section className="relative overflow-hidden border-b border-line bg-black">
-        <Image src="/assets/photo-dsc07373.jpg" alt="" fill priority className="object-cover opacity-50" sizes="100vw" />
+        <Image src={home.heroImage} alt="" fill priority className="object-cover opacity-50" sizes="100vw" />
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#000_0%,rgba(0,0,0,.92)_38%,rgba(0,0,0,.45)_75%,rgba(0,0,0,.7)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-[120px] bg-[linear-gradient(0deg,#0A0A0A,transparent)]" />
         <div className="container-rx relative grid items-center gap-12 py-14 md:py-16 [grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))]">
@@ -34,13 +45,11 @@ export default async function Home() {
               <span className="text-[13px] font-semibold uppercase tracking-[.14em] text-silver">{season.name} · {phase?.label ?? "intersaison"}</span>
             </div>
             <h1 className="font-display text-[clamp(52px,8vw,86px)] font-extrabold leading-[.9] tracking-[-.01em]">
-              Chaque match
+              {home.title}
               <br />
-              compte <span className="text-orange">au classement.</span>
+              <span className="text-orange">{home.accent}</span>
             </h1>
-            <p className="mt-5 max-w-[540px] text-lg leading-normal text-pretty text-silver">
-              RushXP réunit cinq jeux compétitifs dans un classement permanent. Défiez les équipes proches de vous, montez en division et visez les Playoffs : 2 500 € pour le top de la Division 1.
-            </p>
+            <p className="mt-5 max-w-[540px] text-lg leading-normal text-pretty text-silver">{home.subtitle}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               {member ? (
                 <Link href="/rankings/defis" className="btn btn-primary clip-corner-sm !min-h-[52px] !px-[26px] !text-lg">Lancer un défi</Link>
@@ -69,13 +78,35 @@ export default async function Home() {
         </div>
       </section>
 
+      {banner && (
+        <div className="container-rx pt-6">
+          <a href={banner.href} className="relative block h-[120px] overflow-hidden border border-line bg-black" aria-label={`${banner.partner.name} · ${banner.title}`}>
+            {banner.imageUrl ? <Image src={banner.imageUrl} alt={banner.title} fill className="object-contain" sizes="1360px" /> : <span className="grid h-full place-items-center font-display text-xl">{banner.title}</span>}
+            <span className="badge absolute top-2 right-2 bg-bg text-silver">Publicité</span>
+          </a>
+        </div>
+      )}
+
+      {lan && (
+        <div className="container-rx pt-6">
+          <Link href={`/lan?e=${lan.slug}`} className="relative flex flex-wrap items-center gap-4 overflow-hidden border border-yellow bg-black px-[22px] py-4 text-ink hover:text-ink">
+            {lan.posterUrl && <Image src={lan.posterUrl} alt="" fill className="object-cover opacity-25" sizes="1360px" />}
+            <span className="relative badge bg-yellow !text-bg">{lan.status === "OPEN" ? "Inscriptions ouvertes" : "LAN annoncée"}</span>
+            <span className="relative font-display text-2xl font-extrabold">{lan.name}</span>
+            <span className="relative flex-1 text-sm text-silver">{lan.place}{lan.startsAt ? ` · ${dayFmt.format(lan.startsAt)}` : ""}</span>
+            <span className="relative text-sm font-semibold text-yellow">Voir la LAN →</span>
+          </Link>
+        </div>
+      )}
+
+      {show("Pour vous") && (
       <section className="container-rx pt-8" aria-label="Pour vous">
         {isStaff(role) ? (
           <div className="card flex flex-wrap items-center gap-6 px-[22px] py-5">
             <div className="flex-1">
               <div className="overline !text-orange">Équipe RushXP</div>
               <div className="font-display text-[26px] font-extrabold">À traiter aujourd’hui</div>
-              <div className="text-sm text-silver">Contestations, captures à faible confiance OCR, signalements.</div>
+              <div className="text-sm text-silver">{todo ? `${todo} dossier(s) en attente : contestations et signalements.` : "File vide : aucune contestation ni signalement en attente."}</div>
             </div>
             <Link href="/arbitrage" className="btn btn-primary">Ouvrir l’espace arbitre</Link>
           </div>
@@ -124,7 +155,27 @@ export default async function Home() {
           </div>
         )}
       </section>
+      )}
 
+      {show("Prochains matchs") && upcoming.length > 0 && (
+        <section className="container-rx pt-10" aria-labelledby="prochains">
+          <div className="card">
+            <div className="card-head"><h2 id="prochains" className="card-title">Prochains matchs</h2><Link href="/calendrier" className="text-[13px] font-semibold">Calendrier →</Link></div>
+            {upcoming.map((m) => {
+              const g = GAMES.find((x) => x.id === m.game);
+              return (
+                <Link key={m.id} href={m.href} className="list-row grid items-center gap-3 text-ink hover:text-ink [grid-template-columns:32px_minmax(0,1fr)_auto]">
+                  {g ? <Image src={g.logo} alt={g.name} width={30} height={20} className="h-5 w-[30px] object-contain" /> : <span className="text-[10px] font-bold text-yellow">LAN</span>}
+                  <span className="min-w-0"><span className="block truncate font-semibold">{m.a} <span className="text-grey">vs</span> {m.b}</span><span className="block truncate text-xs text-grey">{m.comp}</span></span>
+                  <span className="text-xs font-bold text-orange first-letter:uppercase">{new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Indian/Reunion" }).format(m.when)}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {show("Calendrier de saison") && (
       <section className="container-rx pt-10" aria-labelledby="saison">
         <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
           <h2 id="saison" className="font-display text-[34px] font-extrabold">{season.name} · toute l’année</h2>
@@ -132,6 +183,7 @@ export default async function Home() {
         </div>
         <SeasonTimeline phases={season.phases} now={now} />
       </section>
+      )}
 
       <section className="container-rx pt-10" aria-labelledby="jeux">
         <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
@@ -154,6 +206,7 @@ export default async function Home() {
         </div>
       </section>
 
+      {show("Classement général") && (
       <section className="container-rx pt-10" aria-labelledby="general">
         <div className="card">
           <div className="card-head">
@@ -171,22 +224,26 @@ export default async function Home() {
               <span className="text-right text-xs text-grey">{Object.keys(s.perGame).length}/{GAMES.length} jeux</span>
             </Link>
           ))}
+          {top5.length === 0 && <div className="px-[18px] py-6 text-center text-sm text-grey">Aucune structure classée pour le moment.</div>}
         </div>
       </section>
+      )}
 
+      {show("Partenaires") && partners.length > 0 && (
       <section className="container-rx pt-10" aria-labelledby="partenaires">
         <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
           <h2 id="partenaires" className="font-display text-[34px] font-extrabold">Partenaires</h2>
           <Link href="/partenaires#devenir-partenaire" className="text-sm font-semibold">Devenir partenaire →</Link>
         </div>
         <div className="grid border border-line bg-surface [grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))]">
-          {PARTNERS.map((p) => (
-            <div key={p} className="grid h-24 place-items-center border-r border-b border-line px-4">
-              <Image src={`/assets/${p}`} alt={p.replace("partner-", "").replace(".png", "")} width={120} height={60} className="max-h-[56px] w-auto object-contain" />
-            </div>
+          {partners.map((p) => (
+            <Link key={p.id} href={`/partenaires?p=${p.slug}`} className="grid h-24 place-items-center border-r border-b border-line px-4">
+              <Image src={p.logoUrl} alt={p.name} width={120} height={60} className="max-h-[56px] w-auto object-contain" />
+            </Link>
           ))}
         </div>
       </section>
+      )}
     </main>
   );
 }

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { AD_SLOTS, PARTNERS, SEASON_PEAKS } from "@/lib/data/content";
-import { DEMO_CAMPAIGNS } from "@/lib/data/demo-competition";
+import { AD_SLOTS, SEASON_PEAKS } from "@/lib/data/content";
+import { activePartners, SLOT_LABEL } from "@/lib/site/ads";
 import { PageHeader } from "@/components/PageHeader";
 import { PartnerForm } from "@/components/PartnerForm";
 
@@ -11,8 +11,11 @@ export const metadata: Metadata = { title: "Partenaires" };
 
 export default async function PartenairesPage({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
   const { p } = await searchParams;
-  const sel = PARTNERS.find((x) => x.id === p) ?? PARTNERS[0];
-  const camps = DEMO_CAMPAIGNS.filter((c) => c.partner === sel.name);
+  const partners = await activePartners();
+  const sel = partners.find((x) => x.slug === p) ?? partners[0];
+  const now = new Date();
+  const camps = sel ? await db.adCampaign.findMany({ where: { partnerId: sel.id, active: true, startsAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gte: now } }] } }) : [];
+  const LEVEL = { MAIN: "Partenaire principal", OFFICIAL: "Partenaire officiel", ASSOCIATIVE: "Partenaire associatif" } as const;
   const [players, structures] = await Promise.all([db.user.count({ where: { status: "ACTIVE" } }), db.structure.count({ where: { status: "VERIFIED" } })]);
 
   return (
@@ -20,36 +23,40 @@ export default async function PartenairesPage({ searchParams }: { searchParams: 
       <PageHeader title="Partenaires">Les marques et institutions qui soutiennent la saison RushXP. Logos affichés dans leurs proportions d’origine, sur fond neutre.</PageHeader>
       <div className="mt-5 grid items-start gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr))] lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr))]">
-          {PARTNERS.map((x) => (
-            <Link key={x.id} href={`/partenaires?p=${x.id}`} aria-current={x.id === sel.id ? "true" : undefined} className={`grid border bg-surface text-ink hover:text-ink ${x.id === sel.id ? "border-orange" : "border-line hover:border-[#5a5a5a]"}`}>
+          {partners.map((x) => (
+            <Link key={x.id} href={`/partenaires?p=${x.slug}`} aria-current={x.id === sel?.id ? "true" : undefined} className={`grid border bg-surface text-ink hover:text-ink ${x.id === sel?.id ? "border-orange" : "border-line hover:border-[#5a5a5a]"}`}>
               <div className="grid h-[120px] place-items-center border-b border-line bg-bg p-4">
-                <Image src={x.logo} alt={x.name} width={150} height={80} className="max-h-[80px] w-auto object-contain" />
+                <Image src={x.logoUrl} alt={x.name} width={150} height={80} className="max-h-[80px] w-auto object-contain" />
               </div>
-              <div className="px-4 py-3"><div className="font-semibold">{x.name}</div><div className="text-xs text-grey">{x.cat}</div></div>
+              <div className="px-4 py-3"><div className="font-semibold">{x.name}</div><div className="text-xs text-grey">{x.category}</div></div>
             </Link>
           ))}
+          {partners.length === 0 && <p className="text-sm text-grey">Aucun partenaire pour le moment.</p>}
         </div>
+        {sel && (
         <aside className="card lg:sticky lg:top-[88px]">
           <div className="grid h-[160px] place-items-center border-b border-line bg-bg p-6">
-            <Image src={sel.logo} alt={sel.name} width={200} height={110} className="max-h-[110px] w-auto object-contain" />
+            <Image src={sel.logoUrl} alt={sel.name} width={200} height={110} className="max-h-[110px] w-auto object-contain" />
           </div>
           <div className="grid gap-1.5 p-[18px]">
-            <div className="overline">{sel.cat}</div>
+            <div className="overline">{LEVEL[sel.level]} · {sel.category}</div>
             <div className="font-display text-[28px] font-extrabold leading-none">{sel.name}</div>
-            <p className="text-sm text-silver">{sel.desc}</p>
+            <p className="text-sm text-silver">{sel.description}</p>
+            {sel.site && <a href={sel.site} target="_blank" rel="noopener noreferrer" className="text-[13px]">Site web →</a>}
           </div>
           <div className="border-t border-line">
             <div className="overline px-[18px] pt-3">Campagnes actives</div>
             {camps.map((c) => (
-              <div key={c.name} className="flex justify-between gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm"><span>{c.name}</span><span className="text-xs text-grey">{c.slot}</span></div>
+              <div key={c.id} className="flex justify-between gap-3 border-b border-surface-2 px-[18px] py-2.5 text-sm"><span>{c.name}</span><span className="text-xs text-grey">{SLOT_LABEL[c.slot]}</span></div>
             ))}
             {camps.length === 0 && <div className="px-[18px] py-3 text-[13px] text-grey">Aucune campagne en cours.</div>}
           </div>
         </aside>
+        )}
       </div>
 
       <h2 className="font-display mt-10 text-[34px] font-extrabold">Emplacements publicitaires</h2>
-      <p className="text-sm text-silver">Gabarits de référence. Chaque emplacement porte un label visible et reste hors des zones de chat et d’action de match.</p>
+      <p className="text-sm text-silver">Gabarits de référence (exemples de rendu). Chaque emplacement porte un label visible et reste hors des zones de chat et d’action de match.</p>
       <div className="mt-4 grid gap-4">
         <div>
           <div className="mb-1.5 text-sm font-semibold">Bannière d’accueil <span className="font-normal text-grey">· 1360×160</span></div>

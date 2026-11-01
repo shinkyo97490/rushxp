@@ -114,15 +114,6 @@ export const GUIDE: Record<string, { label: string; blocks: { t: string; d: stri
   },
 };
 
-/** Partenaires fournis par le client (logos dans public/assets). */
-export const PARTNERS = [
-  { id: "mcdo", name: "McDonald’s", cat: "Restauration", logo: "/assets/partner-mcdo.png", desc: "Partenaire restauration de la saison. Campagne McDelivery diffusée dans le fil et lors des soirées de finale." },
-  { id: "orange", name: "Orange", cat: "Télécom & connectivité", logo: "/assets/partner-orange.png", desc: "Partenaire connectivité. Présente les Playoffs et la connexion des LAN RushXP." },
-  { id: "ocorner", name: "OCorner", cat: "Lieu gaming & événementiel", logo: "/assets/partner-ocorner.png", desc: "Lieu d’accueil des LAN et des finales en présentiel." },
-  { id: "easygym", name: "easyGym", cat: "Sport & bien-être", logo: "/assets/partner-easygym.png", desc: "Partenaire préparation physique des joueurs et des structures." },
-  { id: "saintpaul", name: "Ville de Saint-Paul", cat: "Partenaire institutionnel", logo: "/assets/partner-saintpaul.png", desc: "Collectivité partenaire de la saison RushXP · Île de La Réunion." },
-];
-
 export const AD_SLOTS: [string, string][] = [
   ["Bannière d’accueil", "Haut de page, toutes les visites"],
   ["Carte sponsorisée", "Dans le fil d’actualité, label visible"],
